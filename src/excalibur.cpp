@@ -23,6 +23,16 @@ int main() {
         EXFATAL("Failed to create vulkan surface");
         return -1;
     }
+
+    if (!vulkan_backend->select_physical_device()) {
+        EXFATAL("Failed to select vulkan physical device");
+        return -1;
+    }
+
+    if (!vulkan_backend->create_logical_device()) {
+        EXFATAL("Failed to create vulkan logical device");
+        return -1;
+    }
     
     while (window->is_active()) {
         window->update();
