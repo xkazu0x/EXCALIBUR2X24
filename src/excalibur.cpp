@@ -12,8 +12,17 @@ int main() {
     
     window->create("EXCALIBUR", 960, 540);
     window->show();
-    
-    vulkan_backend->initialize();
+
+    // VULKAN BACKEND
+    if (!vulkan_backend->create_instance()) {
+        EXFATAL("Failed to create vulkan instance");
+        return -1;
+    }
+    vulkan_backend->setup_debug_messenger();
+    if (!vulkan_backend->create_surface(&(*window))) {
+        EXFATAL("Failed to create vulkan surface");
+        return -1;
+    }
     
     while (window->is_active()) {
         window->update();

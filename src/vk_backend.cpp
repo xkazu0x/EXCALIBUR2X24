@@ -32,26 +32,26 @@ debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
     return VK_FALSE;
 }
 
-bool
-ex::vulkan::backend::initialize() {
-    if (!create_instance()) {
-        EXFATAL("Failed to create vulkan instance");
-        return false;
-    }
-
-    setup_debug_messenger();
-    
-    return true;
-}
-
 void
 ex::vulkan::backend::shutdown() {
+    if (m_surface) {
+        vkDestroySurfaceKHR(m_instance, m_surface, m_allocator);
+        m_surface = 0;
+    }
+    
 #ifdef EXCALIBUR_DEBUG
-    PFN_vkDestroyDebugUtilsMessengerEXT destroy_debug_messenger =
-        (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(_instance, "vkDestroyDebugUtilsMessengerEXT");
-    destroy_debug_messenger(_instance, _debug_messenger, _allocator);
+    if (m_debug_messenger) {
+        PFN_vkDestroyDebugUtilsMessengerEXT destroy_debug_messenger =
+            (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
+        destroy_debug_messenger(m_instance, m_debug_messenger, m_allocator);
+        m_debug_messenger = 0;
+    }
 #endif
-    vkDestroyInstance(_instance, _allocator);
+    
+    if (m_instance) {
+        vkDestroyInstance(m_instance, m_allocator);
+        m_instance = 0;
+    }
 }
 
 bool
@@ -77,7 +77,7 @@ ex::vulkan::backend::create_instance() {
         }
         if (!found) {
             EXERROR("Failed to find required layer: %s", enabled_layers[i]);
-            return -1;
+            return false;
         }
     }
 #endif
@@ -106,7 +106,7 @@ ex::vulkan::backend::create_instance() {
         }
         if (!found) {
             EXERROR("Failed to find required extension: %s", enabled_extensions[i]);
-            return -1;
+            return false;
         }
     }
 
@@ -127,8 +127,8 @@ ex::vulkan::backend::create_instance() {
     instance_create_info.ppEnabledExtensionNames = enabled_extensions.data();
 
     VK_CHECK(vkCreateInstance(&instance_create_info,
-                              _allocator,
-                              &_instance));
+                              m_allocator,
+                              &m_instance));
 
     return true;
 }
@@ -154,10 +154,18 @@ ex::vulkan::backend::setup_debug_messenger() {
     debug_messenger_create_info.pfnUserCallback = debug_callback;
 
     PFN_vkCreateDebugUtilsMessengerEXT create_debug_messenger =
-        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(_instance, "vkCreateDebugUtilsMessengerEXT");
-    VK_CHECK(create_debug_messenger(_instance,
+        (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT");
+    VK_CHECK(create_debug_messenger(m_instance,
                                     &debug_messenger_create_info,
-                                    _allocator,
-                                    &_debug_messenger));
+                                    m_allocator,
+                                    &m_debug_messenger));
 #endif
+}
+
+bool ex::vulkan::backend::create_surface(ex::window *window) {
+    if (!window->create_vulkan_surface(m_instance, m_allocator, &m_surface)) {
+        return false;
+    }
+
+    return true;
 }

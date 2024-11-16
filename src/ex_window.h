@@ -3,6 +3,8 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_win32.h>
 
 #include <string>
 #include <cstdint>
@@ -25,6 +27,10 @@ namespace ex {
 
         bool is_active();
 
+        bool create_vulkan_surface(VkInstance instance,
+                                   VkAllocationCallbacks *allocator,
+                                   VkSurfaceKHR *surface);
+        
     private:
         static LRESULT process_message_setup(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
         static LRESULT process_message_redirect(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);

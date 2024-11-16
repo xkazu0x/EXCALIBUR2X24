@@ -70,6 +70,24 @@ bool ex::window::is_active() {
     return m_state == EX_WINDOW_STATE_ACTIVE;
 }
 
+bool ex::window::create_vulkan_surface(VkInstance instance,
+                                       VkAllocationCallbacks *allocator,
+                                       VkSurfaceKHR *surface) {
+    VkWin32SurfaceCreateInfoKHR surface_create_info = {};
+    surface_create_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+    surface_create_info.hinstance = m_instance;
+    surface_create_info.hwnd = m_handle;
+    VkResult result = vkCreateWin32SurfaceKHR(instance,
+                                              &surface_create_info,
+                                              allocator,
+                                              surface);
+    if (result != VK_SUCCESS) {
+        return false;
+    }
+
+    return true;
+}
+
 LRESULT ex::window::process_message_setup(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     if (msg == WM_NCCREATE) {
         auto *create_struct = (CREATESTRUCTA*)lparam;
