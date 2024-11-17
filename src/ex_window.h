@@ -24,8 +24,9 @@ namespace ex {
         
         void show();
         void close();
-
         bool is_active();
+        uint32_t width();
+        uint32_t height();
 
         bool create_vulkan_surface(VkInstance instance,
                                    VkAllocationCallbacks *allocator,

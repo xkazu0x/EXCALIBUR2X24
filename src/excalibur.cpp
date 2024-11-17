@@ -33,6 +33,8 @@ int main() {
         EXFATAL("Failed to create vulkan logical device");
         return -1;
     }
+
+    vulkan_backend->create_swapchain(window->width(), window->height());
     
     while (window->is_active()) {
         window->update();

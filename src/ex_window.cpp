@@ -70,6 +70,14 @@ bool ex::window::is_active() {
     return m_state == EX_WINDOW_STATE_ACTIVE;
 }
 
+uint32_t ex::window::width() {
+    return m_width;
+}
+
+uint32_t ex::window::height() {
+    return m_height;
+}
+
 bool ex::window::create_vulkan_surface(VkInstance instance,
                                        VkAllocationCallbacks *allocator,
                                        VkSurfaceKHR *surface) {

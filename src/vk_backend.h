@@ -4,6 +4,7 @@
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
+#include <vector>
 
 namespace ex::vulkan {
     class backend {
@@ -15,6 +16,7 @@ namespace ex::vulkan {
         bool create_surface(ex::window *window);
         bool select_physical_device();
         bool create_logical_device();
+        void create_swapchain(uint32_t width, uint32_t height);
         
     private:
         VkAllocationCallbacks *m_allocator;
@@ -32,5 +34,16 @@ namespace ex::vulkan {
 
         VkQueue m_graphics_queue;
         VkQueue m_present_queue;
+
+        VkSwapchainKHR m_swapchain;
+        VkSurfaceFormatKHR m_swapchain_format;
+        VkPresentModeKHR m_swapchain_present_mode;
+        VkExtent2D m_swapchain_extent;
+        std::vector<VkImage> m_swapchain_images;
+        std::vector<VkImageView> m_swapchain_image_views;
+        
+        VkSurfaceCapabilitiesKHR m_swapchain_capabilities;
+        std::vector<VkSurfaceFormatKHR> m_swapchain_formats;
+        std::vector<VkPresentModeKHR> m_swapchain_present_modes;
     };
 }
