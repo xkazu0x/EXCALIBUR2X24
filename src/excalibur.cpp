@@ -28,13 +28,20 @@ int main() {
         EXFATAL("Failed to select vulkan physical device");
         return -1;
     }
-
+    
     if (!vulkan_backend->create_logical_device()) {
         EXFATAL("Failed to create vulkan logical device");
         return -1;
     }
 
+    vulkan_backend->create_command_pool();
     vulkan_backend->create_swapchain(window->width(), window->height());
+    vulkan_backend->create_render_pass();
+    vulkan_backend->create_framebuffers();
+    vulkan_backend->allocate_command_buffers();
+    vulkan_backend->create_sync_structures();
+
+    vulkan_backend->create_pipeline();
     
     while (window->is_active()) {
         window->update();

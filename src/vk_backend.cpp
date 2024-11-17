@@ -6,6 +6,9 @@
 #include <cstdint>
 #include <cstring>
 
+#include <fstream>
+#include <string>
+
 #define VK_CHECK(x) assert((x) == VK_SUCCESS);
 
 VKAPI_ATTR VkBool32 VKAPI_CALL
@@ -36,11 +39,70 @@ void
 ex::vulkan::backend::shutdown() {
     vkDeviceWaitIdle(m_logical_device);
 
+    if (m_graphics_pipeline) {
+        vkDestroyPipeline(m_logical_device,
+                          m_graphics_pipeline,
+                          m_allocator);
+        m_graphics_pipeline = 0;
+    }
+
+    if (m_pipeline_layout) {
+        vkDestroyPipelineLayout(m_logical_device,
+                                m_pipeline_layout,
+                                m_allocator);
+        m_pipeline_layout = 0;
+    }
+    
+    if (m_semaphore_render) {
+        vkDestroySemaphore(m_logical_device,
+                           m_semaphore_render,
+                           m_allocator);
+        m_semaphore_render = 0;
+    }
+
+    if (m_semaphore_present) {
+        vkDestroySemaphore(m_logical_device,
+                           m_semaphore_present,
+                           m_allocator);
+        m_semaphore_present = 0;
+    }
+    
+    if (m_fence) {
+        vkDestroyFence(m_logical_device,
+                       m_fence,
+                       m_allocator);
+        m_fence = 0;
+    }
+    
+    if (!m_command_buffers.empty()) {
+        vkFreeCommandBuffers(m_logical_device,
+                             m_command_pool,
+                             m_command_buffers.size(),
+                             m_command_buffers.data());
+    }
+    
+    if (!m_swapchain_framebuffers.empty()) {
+        for (uint32_t i = 0; i < m_swapchain_framebuffers.size(); i++) {
+            vkDestroyFramebuffer(m_logical_device,
+                                 m_swapchain_framebuffers[i],
+                                 m_allocator);
+            m_swapchain_framebuffers[i] = 0;
+        }
+    }
+    
+    if (m_render_pass) {
+        vkDestroyRenderPass(m_logical_device,
+                            m_render_pass,
+                            m_allocator);
+        m_render_pass = 0;
+    }
+    
     if (!m_swapchain_image_views.empty()) {
         for (uint32_t i = 0; i < m_swapchain_image_views.size(); i++) {
             vkDestroyImageView(m_logical_device,
                                m_swapchain_image_views[i],
                                m_allocator);
+            m_swapchain_image_views[i] = 0;
         }
     }
     
@@ -49,6 +111,13 @@ ex::vulkan::backend::shutdown() {
                               m_swapchain,
                               m_allocator);
         m_swapchain = 0;
+    }
+
+    if (m_command_pool) {
+        vkDestroyCommandPool(m_logical_device,
+                             m_command_pool,
+                             m_allocator);
+        m_command_pool = 0;
     }
     
     if (m_logical_device) {        
@@ -184,7 +253,8 @@ ex::vulkan::backend::setup_debug_messenger() {
 #endif
 }
 
-bool ex::vulkan::backend::create_surface(ex::window *window) {
+bool
+ex::vulkan::backend::create_surface(ex::window *window) {
     if (!window->create_vulkan_surface(m_instance, m_allocator, &m_surface)) {
         return false;
     }
@@ -192,7 +262,8 @@ bool ex::vulkan::backend::create_surface(ex::window *window) {
     return true;
 }
 
-bool ex::vulkan::backend::select_physical_device() {
+bool
+ex::vulkan::backend::select_physical_device() {
     uint32_t physical_device_count = 0;
     VK_CHECK(vkEnumeratePhysicalDevices(m_instance,
                                         &physical_device_count,
@@ -258,7 +329,8 @@ bool ex::vulkan::backend::select_physical_device() {
     return false;
 }
 
-bool ex::vulkan::backend::create_logical_device() {
+bool
+ex::vulkan::backend::create_logical_device() {
     std::vector<uint32_t> queue_family_indices = {
         m_graphics_queue_index
     };
@@ -340,7 +412,20 @@ bool ex::vulkan::backend::create_logical_device() {
     return true;
 }
 
-void ex::vulkan::backend::create_swapchain(uint32_t width, uint32_t height) {
+void
+ex::vulkan::backend::create_command_pool() {
+    VkCommandPoolCreateInfo command_pool_create_info = {};
+    command_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    command_pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    command_pool_create_info.queueFamilyIndex = m_graphics_queue_index;
+    VK_CHECK(vkCreateCommandPool(m_logical_device,
+                                 &command_pool_create_info,
+                                 m_allocator,
+                                 &m_command_pool));
+}
+
+void
+ex::vulkan::backend::create_swapchain(uint32_t width, uint32_t height) {
     // swapchain capabilities
     VK_CHECK(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physical_device,
                                                        m_surface,
@@ -484,4 +569,327 @@ void ex::vulkan::backend::create_swapchain(uint32_t width, uint32_t height) {
                                    m_allocator,
                                    &m_swapchain_image_views[i]));
     }
+}
+
+void
+ex::vulkan::backend::create_render_pass() {
+    VkAttachmentDescription color_attachment_description = {};
+    color_attachment_description.flags = 0;
+    color_attachment_description.format = m_swapchain_format.format;
+    color_attachment_description.samples = VK_SAMPLE_COUNT_1_BIT;
+    color_attachment_description.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    color_attachment_description.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    color_attachment_description.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    color_attachment_description.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    color_attachment_description.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    color_attachment_description.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    VkAttachmentReference color_attachment_reference = {};
+    color_attachment_reference.attachment = 0;
+    color_attachment_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass_description = {};
+    subpass_description.flags = 0;
+    subpass_description.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass_description.inputAttachmentCount = 0;
+    subpass_description.pInputAttachments = nullptr;
+    subpass_description.colorAttachmentCount = 1;
+    subpass_description.pColorAttachments = &color_attachment_reference;
+    subpass_description.pResolveAttachments = nullptr;
+    subpass_description.pDepthStencilAttachment = nullptr;
+    subpass_description.preserveAttachmentCount = 0;
+    subpass_description.pPreserveAttachments  = nullptr;
+
+    VkSubpassDependency subpass_dependency = {};
+    subpass_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    subpass_dependency.dstSubpass = 0;
+    subpass_dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    subpass_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    subpass_dependency.srcAccessMask = 0;
+    subpass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    subpass_dependency.dependencyFlags = 0;
+
+    VkRenderPassCreateInfo render_pass_create_info = {};
+    render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    render_pass_create_info.pNext = nullptr;
+    render_pass_create_info.flags = 0;
+    render_pass_create_info.attachmentCount = 1;
+    render_pass_create_info.pAttachments = &color_attachment_description;
+    render_pass_create_info.subpassCount = 1;
+    render_pass_create_info.pSubpasses = &subpass_description;
+    render_pass_create_info.dependencyCount = 1;
+    render_pass_create_info.pDependencies = &subpass_dependency;
+    VK_CHECK(vkCreateRenderPass(m_logical_device,
+                                &render_pass_create_info,
+                                m_allocator,
+                                &m_render_pass));
+}
+
+void
+ex::vulkan::backend::create_framebuffers() {
+    m_swapchain_framebuffers.resize(m_swapchain_images.size());
+    for (uint32_t i = 0; i < m_swapchain_images.size(); i++) {
+        VkFramebufferCreateInfo framebuffer_create_info = {};
+        framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebuffer_create_info.pNext = nullptr;
+        framebuffer_create_info.flags = 0;
+        framebuffer_create_info.renderPass = m_render_pass;
+        framebuffer_create_info.attachmentCount = 1;
+        framebuffer_create_info.pAttachments = &m_swapchain_image_views[i];
+        framebuffer_create_info.width = m_swapchain_extent.width;
+        framebuffer_create_info.height = m_swapchain_extent.height;
+        framebuffer_create_info.layers = 1;
+        VK_CHECK(vkCreateFramebuffer(m_logical_device,
+                                     &framebuffer_create_info,
+                                     m_allocator,
+                                     &m_swapchain_framebuffers[i]));
+    }
+}
+
+void
+ex::vulkan::backend::allocate_command_buffers() {
+    m_command_buffers.resize(m_swapchain_images.size());
+    for (uint32_t i = 0; i < m_swapchain_images.size(); i++) {
+        VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
+        command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        command_buffer_allocate_info.pNext = nullptr;
+        command_buffer_allocate_info.commandPool = m_command_pool;
+        command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        command_buffer_allocate_info.commandBufferCount = 1;
+        VK_CHECK(vkAllocateCommandBuffers(m_logical_device,
+                                          &command_buffer_allocate_info,
+                                          &m_command_buffers[i]));
+    }
+}
+
+void
+ex::vulkan::backend::create_sync_structures() {
+    VkFenceCreateInfo fence_create_info = {};
+    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fence_create_info.pNext = nullptr;
+    fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    VK_CHECK(vkCreateFence(m_logical_device,
+                           &fence_create_info,
+                           m_allocator,
+                           &m_fence));
+
+    VkSemaphoreCreateInfo semaphore_create_info = {};
+    semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semaphore_create_info.pNext = nullptr; 
+    semaphore_create_info.flags = 0;
+    VK_CHECK(vkCreateSemaphore(m_logical_device,
+                               &semaphore_create_info,
+                               m_allocator,
+                               &m_semaphore_present));
+
+    VK_CHECK(vkCreateSemaphore(m_logical_device,
+                               &semaphore_create_info,
+                               m_allocator,
+                               &m_semaphore_render));
+}
+
+void
+ex::vulkan::backend::create_pipeline() {
+    // shaders
+    std::vector<char> vertex_code = read_file("res/shaders/triangle.vert.spv");
+    std::vector<char> fragment_code = read_file("res/shaders/triangle.frag.spv");
+    EXDEBUG("Vertex shader size: %d", vertex_code.size());
+    EXDEBUG("Fragment shader size: %d", fragment_code.size());
+
+    VkShaderModule vertex_shader = create_shader_module(vertex_code);
+    VkShaderModule fragment_shader = create_shader_module(fragment_code);
+
+    // shader stages
+    std::vector<VkPipelineShaderStageCreateInfo> shader_stages(2);
+    // vertex
+    shader_stages[0].pNext = nullptr;
+    shader_stages[0].flags = 0;
+    shader_stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shader_stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    shader_stages[0].module = vertex_shader;
+    shader_stages[0].pName = "main";
+    // fragment
+    shader_stages[1].pNext = nullptr;
+    shader_stages[1].flags = 0;
+    shader_stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shader_stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    shader_stages[1].module = fragment_shader;
+    shader_stages[1].pName = "main";
+
+    VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {};
+    vertex_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertex_input_state_create_info.vertexBindingDescriptionCount = 0;
+    vertex_input_state_create_info.pVertexBindingDescriptions  = nullptr;
+    vertex_input_state_create_info.vertexAttributeDescriptionCount  = 0;
+    vertex_input_state_create_info.pVertexAttributeDescriptions  = nullptr;
+
+    // input assembly
+    VkPipelineInputAssemblyStateCreateInfo input_assembly_state_create_info = {};
+    input_assembly_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    input_assembly_state_create_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    input_assembly_state_create_info.primitiveRestartEnable = VK_FALSE;    
+
+    // viewport and scissor
+    m_pipeline_viewport.x = 0.0f;
+    m_pipeline_viewport.y = 0.0f;
+    m_pipeline_viewport.width = static_cast<float>(m_swapchain_extent.width);
+    m_pipeline_viewport.height = static_cast<float>(m_swapchain_extent.height);
+    m_pipeline_viewport.minDepth = 0.0f;
+    m_pipeline_viewport.maxDepth = 1.0f;
+
+    m_pipeline_scissor.offset = { 0, 0 };
+    m_pipeline_scissor.extent = m_swapchain_extent;
+
+    VkPipelineViewportStateCreateInfo viewport_state_create_info = {};
+    viewport_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewport_state_create_info.viewportCount = 1;
+    viewport_state_create_info.pViewports = &m_pipeline_viewport;
+    viewport_state_create_info.scissorCount = 1;
+    viewport_state_create_info.pScissors = &m_pipeline_scissor;
+
+    // rasterization
+    VkPipelineRasterizationStateCreateInfo rasterization_state_create_info = {};
+    rasterization_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterization_state_create_info.depthClampEnable = VK_FALSE;
+    rasterization_state_create_info.rasterizerDiscardEnable = VK_FALSE;
+    rasterization_state_create_info.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterization_state_create_info.cullMode = VK_CULL_MODE_NONE;
+    rasterization_state_create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterization_state_create_info.depthBiasEnable = VK_FALSE;
+    rasterization_state_create_info.depthBiasConstantFactor = 0.0f;
+    rasterization_state_create_info.depthBiasClamp = 0.0f;
+    rasterization_state_create_info.depthBiasSlopeFactor = 0.0f;
+    rasterization_state_create_info.lineWidth = 1.0f;
+
+    // multisampling
+    VkPipelineMultisampleStateCreateInfo multisample_state_create_info = {};
+    multisample_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisample_state_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+    multisample_state_create_info.sampleShadingEnable = VK_FALSE;
+    multisample_state_create_info.minSampleShading = 1.0f;
+    multisample_state_create_info.pSampleMask = nullptr;
+    multisample_state_create_info.alphaToCoverageEnable = VK_FALSE;
+    multisample_state_create_info.alphaToOneEnable = VK_FALSE;
+
+    // depth stencil
+    VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info = {};
+    depth_stencil_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depth_stencil_state_create_info.depthTestEnable = VK_TRUE;
+    depth_stencil_state_create_info.depthWriteEnable = VK_TRUE;
+    depth_stencil_state_create_info.depthCompareOp = VK_COMPARE_OP_LESS;
+    depth_stencil_state_create_info.depthBoundsTestEnable = VK_FALSE;
+    depth_stencil_state_create_info.stencilTestEnable = VK_FALSE;
+    depth_stencil_state_create_info.front = {};
+    depth_stencil_state_create_info.back = {};
+    depth_stencil_state_create_info.minDepthBounds = 0.0f;
+    depth_stencil_state_create_info.maxDepthBounds = 1.0f;
+    
+    // color blending
+    VkPipelineColorBlendAttachmentState color_blend_attachment_state = {};
+    color_blend_attachment_state.blendEnable = VK_FALSE;
+    color_blend_attachment_state.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+    color_blend_attachment_state.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+    color_blend_attachment_state.colorBlendOp = VK_BLEND_OP_ADD;
+    color_blend_attachment_state.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    color_blend_attachment_state.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    color_blend_attachment_state.alphaBlendOp = VK_BLEND_OP_ADD;
+    color_blend_attachment_state.colorWriteMask =
+        VK_COLOR_COMPONENT_R_BIT |
+        VK_COLOR_COMPONENT_G_BIT |
+        VK_COLOR_COMPONENT_B_BIT |
+        VK_COLOR_COMPONENT_A_BIT;
+
+    VkPipelineColorBlendStateCreateInfo color_blend_state_create_info = {};
+    color_blend_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    color_blend_state_create_info.logicOpEnable = VK_FALSE;
+    color_blend_state_create_info.logicOp = VK_LOGIC_OP_COPY;
+    color_blend_state_create_info.attachmentCount = 1;
+    color_blend_state_create_info.pAttachments = &color_blend_attachment_state;
+    color_blend_state_create_info.blendConstants[0] = 0.0f;
+    color_blend_state_create_info.blendConstants[1] = 0.0f;
+    color_blend_state_create_info.blendConstants[2] = 0.0f;
+    color_blend_state_create_info.blendConstants[3] = 0.0f;
+
+    // pipeline layout
+    VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
+    pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipeline_layout_create_info.setLayoutCount = 0;
+    pipeline_layout_create_info.pSetLayouts = nullptr;
+    pipeline_layout_create_info.pushConstantRangeCount = 0;
+    pipeline_layout_create_info.pPushConstantRanges = nullptr;
+    VK_CHECK(vkCreatePipelineLayout(m_logical_device,
+                                    &pipeline_layout_create_info,
+                                    m_allocator,
+                                    &m_pipeline_layout));
+
+    // create graphics pipeline
+    VkGraphicsPipelineCreateInfo graphics_pipeline_create_info = {};
+    graphics_pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    graphics_pipeline_create_info.pNext = nullptr;
+    graphics_pipeline_create_info.flags = 0;
+    graphics_pipeline_create_info.stageCount = shader_stages.size();
+    graphics_pipeline_create_info.pStages = shader_stages.data();
+    graphics_pipeline_create_info.pVertexInputState = &vertex_input_state_create_info;
+    graphics_pipeline_create_info.pInputAssemblyState = &input_assembly_state_create_info;
+    graphics_pipeline_create_info.pTessellationState = nullptr;
+    graphics_pipeline_create_info.pViewportState = &viewport_state_create_info;
+    graphics_pipeline_create_info.pRasterizationState = &rasterization_state_create_info;
+    graphics_pipeline_create_info.pMultisampleState = &multisample_state_create_info;
+    graphics_pipeline_create_info.pDepthStencilState = &depth_stencil_state_create_info;
+    graphics_pipeline_create_info.pColorBlendState = &color_blend_state_create_info;
+    graphics_pipeline_create_info.pDynamicState = nullptr;
+    
+    graphics_pipeline_create_info.layout = m_pipeline_layout;
+    graphics_pipeline_create_info.renderPass = m_render_pass;
+    graphics_pipeline_create_info.subpass = m_pipeline_subpass;
+    
+    graphics_pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
+    graphics_pipeline_create_info.basePipelineIndex = 0;
+
+    VK_CHECK(vkCreateGraphicsPipelines(m_logical_device,
+                                       nullptr,
+                                       1,
+                                       &graphics_pipeline_create_info,
+                                       m_allocator,
+                                       &m_graphics_pipeline));
+
+    // destroy shaders
+    vkDestroyShaderModule(m_logical_device,
+                          vertex_shader,
+                          m_allocator);
+
+    vkDestroyShaderModule(m_logical_device,
+                          fragment_shader,
+                          m_allocator);
+}
+
+std::vector<char>
+ex::vulkan::backend::read_file(const char *filepath) {
+    std::ifstream file(filepath, std::ios::ate | std::ios::binary);
+    if (!file.is_open()) {
+        throw std::runtime_error("Failed to open file");
+    }
+    
+    size_t file_size = static_cast<size_t>(file.tellg());
+    std::vector<char> buffer(file_size);
+    
+    file.seekg(0, file.beg);
+    file.read(buffer.data(), file_size);
+    file.close();
+    
+    return buffer;
+}
+
+VkShaderModule
+ex::vulkan::backend::create_shader_module(const std::vector<char> &shader_code) {
+    VkShaderModule out_shader_module;
+    VkShaderModuleCreateInfo shader_module_create_info = {};
+    shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    shader_module_create_info.codeSize = static_cast<size_t>(shader_code.size());
+    shader_module_create_info.pCode = reinterpret_cast<const uint32_t *>(shader_code.data());
+    VK_CHECK(vkCreateShaderModule(m_logical_device,
+                                  &shader_module_create_info,
+                                  m_allocator,
+                                  &out_shader_module));
+    return out_shader_module;
 }
