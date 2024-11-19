@@ -45,6 +45,7 @@ int main() {
     
     while (window->is_active()) {
         window->update();
+        vulkan_backend->render();
     }
 
     vulkan_backend->shutdown();

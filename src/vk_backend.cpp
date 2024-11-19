@@ -145,6 +145,77 @@ ex::vulkan::backend::shutdown() {
     }
 }
 
+void
+ex::vulkan::backend::render() {
+    VK_CHECK(vkWaitForFences(m_logical_device,
+                             1,
+                             &m_fence,
+                             VK_TRUE,
+                             UINT64_MAX));
+
+    uint32_t next_image_index = 0;
+    VK_CHECK(vkAcquireNextImageKHR(m_logical_device,
+                                   m_swapchain,
+                                   UINT64_MAX,
+                                   m_semaphore_present,
+                                   nullptr,
+                                   &next_image_index));
+
+    VK_CHECK(vkResetFences(m_logical_device, 1, &m_fence));
+    VK_CHECK(vkResetCommandBuffer(m_command_buffers[next_image_index], 0));
+    
+    VkCommandBufferBeginInfo command_buffer_begin_info = {};
+    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VK_CHECK(vkBeginCommandBuffer(m_command_buffers[next_image_index], &command_buffer_begin_info));
+
+    VkClearValue clear_value = { 0.0f, 0.0f, 0.0f, 1.0f };
+    VkRenderPassBeginInfo render_pass_begin_info = {};
+    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_begin_info.renderPass = m_render_pass;
+    render_pass_begin_info.framebuffer = m_swapchain_framebuffers[next_image_index];
+    render_pass_begin_info.renderArea.offset = { 0, 0 };
+    render_pass_begin_info.renderArea.extent = m_swapchain_extent;
+    render_pass_begin_info.clearValueCount = 1;
+    render_pass_begin_info.pClearValues = &clear_value;
+    vkCmdBeginRenderPass(m_command_buffers[next_image_index],
+                         &render_pass_begin_info,
+                         VK_SUBPASS_CONTENTS_INLINE);
+
+    vkCmdBindPipeline(m_command_buffers[next_image_index],
+                      VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      m_graphics_pipeline);
+
+    vkCmdDraw(m_command_buffers[next_image_index], 3, 1, 0, 0);
+
+    vkCmdEndRenderPass(m_command_buffers[next_image_index]);
+    VK_CHECK(vkEndCommandBuffer(m_command_buffers[next_image_index]));
+
+    VkSubmitInfo submit_info = {};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.waitSemaphoreCount = 1;
+    submit_info.pWaitSemaphores = &m_semaphore_present;
+    
+    VkPipelineStageFlags wait_stage_mask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    submit_info.pWaitDstStageMask = wait_stage_mask;
+    
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &m_command_buffers[next_image_index];
+    
+    submit_info.signalSemaphoreCount = 1;
+    submit_info.pSignalSemaphores = &m_semaphore_render;
+    VK_CHECK(vkQueueSubmit(m_graphics_queue, 1, &submit_info, m_fence));
+
+    VkPresentInfoKHR present_info = {};
+    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    present_info.waitSemaphoreCount = 1;
+    present_info.pWaitSemaphores = &m_semaphore_render;
+    present_info.swapchainCount = 1;
+    present_info.pSwapchains = &m_swapchain;
+    present_info.pImageIndices = &next_image_index;
+    VK_CHECK(vkQueuePresentKHR(m_graphics_queue, &present_info));
+}
+
 bool
 ex::vulkan::backend::create_instance() {
     // INSTANCE LAYERS 
@@ -772,6 +843,7 @@ ex::vulkan::backend::create_pipeline() {
     multisample_state_create_info.alphaToOneEnable = VK_FALSE;
 
     // depth stencil
+    /*
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info = {};
     depth_stencil_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depth_stencil_state_create_info.depthTestEnable = VK_TRUE;
@@ -783,7 +855,7 @@ ex::vulkan::backend::create_pipeline() {
     depth_stencil_state_create_info.back = {};
     depth_stencil_state_create_info.minDepthBounds = 0.0f;
     depth_stencil_state_create_info.maxDepthBounds = 1.0f;
-    
+    */
     // color blending
     VkPipelineColorBlendAttachmentState color_blend_attachment_state = {};
     color_blend_attachment_state.blendEnable = VK_FALSE;
@@ -835,7 +907,8 @@ ex::vulkan::backend::create_pipeline() {
     graphics_pipeline_create_info.pViewportState = &viewport_state_create_info;
     graphics_pipeline_create_info.pRasterizationState = &rasterization_state_create_info;
     graphics_pipeline_create_info.pMultisampleState = &multisample_state_create_info;
-    graphics_pipeline_create_info.pDepthStencilState = &depth_stencil_state_create_info;
+    //graphics_pipeline_create_info.pDepthStencilState = &depth_stencil_state_create_info;
+    graphics_pipeline_create_info.pDepthStencilState = nullptr;
     graphics_pipeline_create_info.pColorBlendState = &color_blend_state_create_info;
     graphics_pipeline_create_info.pDynamicState = nullptr;
     

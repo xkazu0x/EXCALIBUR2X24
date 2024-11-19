@@ -10,6 +10,7 @@ namespace ex::vulkan {
     class backend {
     public:
         void shutdown();
+        void render();
 
         bool create_instance();
         void setup_debug_messenger();
