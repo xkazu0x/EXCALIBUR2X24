@@ -188,6 +188,7 @@ ex::vulkan::backend::render() {
     render_pass_begin_info.renderArea.extent = m_swapchain_extent;
     render_pass_begin_info.clearValueCount = static_cast<uint32_t>(clear_values.size());
     render_pass_begin_info.pClearValues = clear_values.data();
+    
     vkCmdBeginRenderPass(m_command_buffers[next_image_index],
                          &render_pass_begin_info,
                          VK_SUBPASS_CONTENTS_INLINE);
@@ -196,6 +197,18 @@ ex::vulkan::backend::render() {
                       VK_PIPELINE_BIND_POINT_GRAPHICS,
                       m_graphics_pipeline);
 
+    m_pipeline_viewport.x = 0.0f;
+    m_pipeline_viewport.y = 0.0f;
+    m_pipeline_viewport.width = m_swapchain_extent.width;
+    m_pipeline_viewport.height = m_swapchain_extent.height;
+    m_pipeline_viewport.minDepth = 0.0f;
+    m_pipeline_viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(m_command_buffers[next_image_index], 0, 1, &m_pipeline_viewport);
+
+    m_pipeline_scissor.offset = {0, 0};
+    m_pipeline_scissor.extent = m_swapchain_extent;
+    vkCmdSetScissor(m_command_buffers[next_image_index], 0, 1, &m_pipeline_scissor);
+    
     vkCmdDraw(m_command_buffers[next_image_index], 3, 1, 0, 0);
 
     vkCmdEndRenderPass(m_command_buffers[next_image_index]);
@@ -223,6 +236,7 @@ ex::vulkan::backend::render() {
     present_info.swapchainCount = 1;
     present_info.pSwapchains = &m_swapchain;
     present_info.pImageIndices = &next_image_index;
+    
     result = vkQueuePresentKHR(m_graphics_queue, &present_info);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
         return false;
@@ -900,6 +914,17 @@ ex::vulkan::backend::create_pipeline() {
     color_blend_state_create_info.blendConstants[2] = 0.0f;
     color_blend_state_create_info.blendConstants[3] = 0.0f;
 
+    // dynamic state
+    std::vector<VkDynamicState> dynamic_states = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR,
+    };
+    
+    VkPipelineDynamicStateCreateInfo dynamic_state_create_info = {};
+    dynamic_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamic_state_create_info.dynamicStateCount = static_cast<uint32_t>(dynamic_states.size());
+    dynamic_state_create_info.pDynamicStates = dynamic_states.data();
+    
     // pipeline layout
     VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
     pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -928,7 +953,7 @@ ex::vulkan::backend::create_pipeline() {
     //graphics_pipeline_create_info.pDepthStencilState = &depth_stencil_state_create_info;
     graphics_pipeline_create_info.pDepthStencilState = nullptr;
     graphics_pipeline_create_info.pColorBlendState = &color_blend_state_create_info;
-    graphics_pipeline_create_info.pDynamicState = nullptr;
+    graphics_pipeline_create_info.pDynamicState = &dynamic_state_create_info;
     
     graphics_pipeline_create_info.layout = m_pipeline_layout;
     graphics_pipeline_create_info.renderPass = m_render_pass;
@@ -956,38 +981,26 @@ ex::vulkan::backend::create_pipeline() {
 
 void
 ex::vulkan::backend::recreate_swapchain(uint32_t width, uint32_t height) {
-    if (width == 0 || height == 0) {
-        return;
-    }
-
-    vkDeviceWaitIdle(m_logical_device);
+    if (width == 0 || height == 0) return;
     
-    vkDestroyPipeline(m_logical_device,
-                      m_graphics_pipeline,
-                      m_allocator);
-
-    vkDestroyPipelineLayout(m_logical_device,
-                            m_pipeline_layout,
-                            m_allocator);
+    vkDeviceWaitIdle(m_logical_device);
     
     for (size_t i = 0; i < m_swapchain_framebuffers.size(); ++i) {
         vkDestroyFramebuffer(m_logical_device,
                              m_swapchain_framebuffers[i],
                              m_allocator);
     }
-
+    
     for (size_t i = 0; i < m_swapchain_image_views.size(); ++i) {
         vkDestroyImageView(m_logical_device,
                            m_swapchain_image_views[i],
                            m_allocator);
     }
-
+    
     vkDestroySwapchainKHR(m_logical_device, m_swapchain, m_allocator);
 
     create_swapchain(width, height);
-    create_framebuffers();
-    create_pipeline();
-
+    create_framebuffers();    
     EXINFO("+ SWAPCHAIN RECREATED");
 }
 
