@@ -119,11 +119,9 @@ LRESULT ex::window::process_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM l
         m_state = EX_WINDOW_STATE_CLOSED;
         return 0;
     } break;
-    case WM_SIZE: {
-        if (LOWORD(lparam) >= 64 && HIWORD(lparam) >= 64) {
-            m_width = LOWORD(lparam);
-            m_height = HIWORD(lparam);
-        }
+    case WM_SIZE: {        
+        m_width = LOWORD(lparam);
+        m_height = HIWORD(lparam);
     } break;
     }
 

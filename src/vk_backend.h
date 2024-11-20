@@ -10,7 +10,7 @@ namespace ex::vulkan {
     class backend {
     public:
         void shutdown();
-        void render();
+        bool render();
 
         bool create_instance();
         void setup_debug_messenger();
@@ -24,6 +24,12 @@ namespace ex::vulkan {
         void allocate_command_buffers();
         void create_sync_structures();
         void create_pipeline();
+
+        void recreate_swapchain(uint32_t width, uint32_t height);
+
+        VkDevice logical_device() {
+            return m_logical_device;
+        }
 
     private:
         std::vector<char> read_file(const char *filepath);

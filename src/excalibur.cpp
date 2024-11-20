@@ -40,14 +40,15 @@ int main() {
     vulkan_backend->create_framebuffers();
     vulkan_backend->allocate_command_buffers();
     vulkan_backend->create_sync_structures();
-
     vulkan_backend->create_pipeline();
     
     while (window->is_active()) {
         window->update();
-        vulkan_backend->render();
+        if (!vulkan_backend->render()) {
+            vulkan_backend->recreate_swapchain(window->width(), window->height());
+        }
     }
-
+    
     vulkan_backend->shutdown();
     window->destroy();
     return 0;

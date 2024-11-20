@@ -9,7 +9,9 @@
 #include <fstream>
 #include <string>
 
-#define VK_CHECK(x) assert((x) == VK_SUCCESS);
+#include <array>
+
+#define VK_CHECK(x) if ((x) != VK_SUCCESS) { EXFATAL("Vulkan Error: %d", x); throw std::runtime_error("\"VK_CHECK\" FAILED"); }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL
 debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
@@ -145,7 +147,7 @@ ex::vulkan::backend::shutdown() {
     }
 }
 
-void
+bool
 ex::vulkan::backend::render() {
     VK_CHECK(vkWaitForFences(m_logical_device,
                              1,
@@ -154,12 +156,18 @@ ex::vulkan::backend::render() {
                              UINT64_MAX));
 
     uint32_t next_image_index = 0;
-    VK_CHECK(vkAcquireNextImageKHR(m_logical_device,
-                                   m_swapchain,
-                                   UINT64_MAX,
-                                   m_semaphore_present,
-                                   nullptr,
-                                   &next_image_index));
+    VkResult result = vkAcquireNextImageKHR(m_logical_device,
+                                            m_swapchain,
+                                            UINT64_MAX,
+                                            m_semaphore_present,
+                                            nullptr,
+                                            &next_image_index);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        return false;
+    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        EXFATAL("Failed to acquire swapchain image");
+        throw std::runtime_error("Failed to acquire swapchain image");
+    }
 
     VK_CHECK(vkResetFences(m_logical_device, 1, &m_fence));
     VK_CHECK(vkResetCommandBuffer(m_command_buffers[next_image_index], 0));
@@ -169,15 +177,17 @@ ex::vulkan::backend::render() {
     command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     VK_CHECK(vkBeginCommandBuffer(m_command_buffers[next_image_index], &command_buffer_begin_info));
 
-    VkClearValue clear_value = { 0.0f, 0.0f, 0.0f, 1.0f };
+    std::array<VkClearValue, 1> clear_values{};
+    clear_values[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+    
     VkRenderPassBeginInfo render_pass_begin_info = {};
     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     render_pass_begin_info.renderPass = m_render_pass;
     render_pass_begin_info.framebuffer = m_swapchain_framebuffers[next_image_index];
     render_pass_begin_info.renderArea.offset = { 0, 0 };
     render_pass_begin_info.renderArea.extent = m_swapchain_extent;
-    render_pass_begin_info.clearValueCount = 1;
-    render_pass_begin_info.pClearValues = &clear_value;
+    render_pass_begin_info.clearValueCount = static_cast<uint32_t>(clear_values.size());
+    render_pass_begin_info.pClearValues = clear_values.data();
     vkCmdBeginRenderPass(m_command_buffers[next_image_index],
                          &render_pass_begin_info,
                          VK_SUBPASS_CONTENTS_INLINE);
@@ -213,7 +223,15 @@ ex::vulkan::backend::render() {
     present_info.swapchainCount = 1;
     present_info.pSwapchains = &m_swapchain;
     present_info.pImageIndices = &next_image_index;
-    VK_CHECK(vkQueuePresentKHR(m_graphics_queue, &present_info));
+    result = vkQueuePresentKHR(m_graphics_queue, &present_info);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        return false;
+    } else if (result != VK_SUCCESS) {
+        EXFATAL("Failed to present swapchain image");
+        throw std::runtime_error("Failed to present swapchain image");
+    }
+
+    return true;
 }
 
 bool
@@ -548,14 +566,16 @@ ex::vulkan::backend::create_swapchain(uint32_t width, uint32_t height) {
     for (uint32_t i = 0; i < m_swapchain_present_modes.size(); i++) {
         VkPresentModeKHR present_mode = m_swapchain_present_modes[i];
         if (present_mode == VK_PRESENT_MODE_MAILBOX_KHR) {
+            EXDEBUG("Present mode: MAILBOX");
             m_swapchain_present_mode = present_mode;
             found_present_mode = true;
             break;
         }
     }
     if (!found_present_mode) {
-        m_swapchain_present_mode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-        EXWARN("Failed to find preferable swapchain present mode");
+        m_swapchain_present_mode = VK_PRESENT_MODE_FIFO_KHR;
+        EXWARN("Failed to find preferable present mode");
+        EXDEBUG("Present mode: V-Sync");
     }
 
     // swapchain extent
@@ -720,17 +740,15 @@ ex::vulkan::backend::create_framebuffers() {
 void
 ex::vulkan::backend::allocate_command_buffers() {
     m_command_buffers.resize(m_swapchain_images.size());
-    for (uint32_t i = 0; i < m_swapchain_images.size(); i++) {
-        VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
-        command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        command_buffer_allocate_info.pNext = nullptr;
-        command_buffer_allocate_info.commandPool = m_command_pool;
-        command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        command_buffer_allocate_info.commandBufferCount = 1;
-        VK_CHECK(vkAllocateCommandBuffers(m_logical_device,
-                                          &command_buffer_allocate_info,
-                                          &m_command_buffers[i]));
-    }
+    
+    VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
+    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    command_buffer_allocate_info.commandPool = m_command_pool;
+    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    command_buffer_allocate_info.commandBufferCount = static_cast<uint32_t>(m_command_buffers.size());
+    VK_CHECK(vkAllocateCommandBuffers(m_logical_device,
+                                      &command_buffer_allocate_info,
+                                      m_command_buffers.data()));
 }
 
 void
@@ -936,10 +954,48 @@ ex::vulkan::backend::create_pipeline() {
                           m_allocator);
 }
 
+void
+ex::vulkan::backend::recreate_swapchain(uint32_t width, uint32_t height) {
+    if (width == 0 || height == 0) {
+        return;
+    }
+
+    vkDeviceWaitIdle(m_logical_device);
+    
+    vkDestroyPipeline(m_logical_device,
+                      m_graphics_pipeline,
+                      m_allocator);
+
+    vkDestroyPipelineLayout(m_logical_device,
+                            m_pipeline_layout,
+                            m_allocator);
+    
+    for (size_t i = 0; i < m_swapchain_framebuffers.size(); ++i) {
+        vkDestroyFramebuffer(m_logical_device,
+                             m_swapchain_framebuffers[i],
+                             m_allocator);
+    }
+
+    for (size_t i = 0; i < m_swapchain_image_views.size(); ++i) {
+        vkDestroyImageView(m_logical_device,
+                           m_swapchain_image_views[i],
+                           m_allocator);
+    }
+
+    vkDestroySwapchainKHR(m_logical_device, m_swapchain, m_allocator);
+
+    create_swapchain(width, height);
+    create_framebuffers();
+    create_pipeline();
+
+    EXINFO("+ SWAPCHAIN RECREATED");
+}
+
 std::vector<char>
 ex::vulkan::backend::read_file(const char *filepath) {
     std::ifstream file(filepath, std::ios::ate | std::ios::binary);
     if (!file.is_open()) {
+        EXFATAL("Failed to open file");
         throw std::runtime_error("Failed to open file");
     }
     
