@@ -41,6 +41,20 @@ void
 ex::vulkan::backend::shutdown() {
     vkDeviceWaitIdle(m_logical_device);
 
+    if (m_vertex_buffer_memory) {
+        vkFreeMemory(m_logical_device,
+                     m_vertex_buffer_memory,
+                     m_allocator);
+        m_vertex_buffer_memory = 0;
+    }
+    
+    if (m_vertex_buffer) {
+        vkDestroyBuffer(m_logical_device,
+                        m_vertex_buffer,
+                        m_allocator);
+        m_vertex_buffer = 0;
+    }
+    
     if (m_graphics_pipeline) {
         vkDestroyPipeline(m_logical_device,
                           m_graphics_pipeline,
@@ -208,6 +222,9 @@ ex::vulkan::backend::render() {
     m_pipeline_scissor.offset = {0, 0};
     m_pipeline_scissor.extent = m_swapchain_extent;
     vkCmdSetScissor(m_command_buffers[next_image_index], 0, 1, &m_pipeline_scissor);
+
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(m_command_buffers[next_image_index], 0, 1, &m_vertex_buffer, offsets);
     
     vkCmdDraw(m_command_buffers[next_image_index], 3, 1, 0, 0);
 
@@ -803,15 +820,14 @@ ex::vulkan::backend::create_pipeline() {
     VkShaderModule fragment_shader = create_shader_module(fragment_code);
 
     // shader stages
-    std::vector<VkPipelineShaderStageCreateInfo> shader_stages(2);
-    // vertex
+    std::array<VkPipelineShaderStageCreateInfo, 2> shader_stages{};
     shader_stages[0].pNext = nullptr;
     shader_stages[0].flags = 0;
     shader_stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shader_stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
     shader_stages[0].module = vertex_shader;
     shader_stages[0].pName = "main";
-    // fragment
+
     shader_stages[1].pNext = nullptr;
     shader_stages[1].flags = 0;
     shader_stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -819,12 +835,29 @@ ex::vulkan::backend::create_pipeline() {
     shader_stages[1].module = fragment_shader;
     shader_stages[1].pName = "main";
 
+    // vertex input
+    VkVertexInputBindingDescription vertex_input_binding_description = {};
+    vertex_input_binding_description.binding = 0;
+    vertex_input_binding_description.stride = sizeof(ex::vertex);
+    vertex_input_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    std::array<VkVertexInputAttributeDescription, 2> vertex_input_attribute_descriptions{};
+    vertex_input_attribute_descriptions[0].location = 0;
+    vertex_input_attribute_descriptions[0].binding = 0;
+    vertex_input_attribute_descriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+    vertex_input_attribute_descriptions[0].offset = offsetof(ex::vertex, pos);
+    
+    vertex_input_attribute_descriptions[1].location = 1;
+    vertex_input_attribute_descriptions[1].binding = 0;
+    vertex_input_attribute_descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+    vertex_input_attribute_descriptions[1].offset = offsetof(ex::vertex, color);
+    
     VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {};
     vertex_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertex_input_state_create_info.vertexBindingDescriptionCount = 0;
-    vertex_input_state_create_info.pVertexBindingDescriptions  = nullptr;
-    vertex_input_state_create_info.vertexAttributeDescriptionCount  = 0;
-    vertex_input_state_create_info.pVertexAttributeDescriptions  = nullptr;
+    vertex_input_state_create_info.vertexBindingDescriptionCount = 1;
+    vertex_input_state_create_info.pVertexBindingDescriptions = &vertex_input_binding_description;
+    vertex_input_state_create_info.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertex_input_attribute_descriptions.size());
+    vertex_input_state_create_info.pVertexAttributeDescriptions = vertex_input_attribute_descriptions.data();
 
     // input assembly
     VkPipelineInputAssemblyStateCreateInfo input_assembly_state_create_info = {};
@@ -977,6 +1010,74 @@ ex::vulkan::backend::create_pipeline() {
     vkDestroyShaderModule(m_logical_device,
                           fragment_shader,
                           m_allocator);
+}
+
+void
+ex::vulkan::backend::create_vertex_buffer() {
+    std::vector<ex::vertex> vertices = {
+        ex::vertex({ 0.0f, -0.5f, 0.0f}, {1.0f, 1.0f, 0.0f}),
+        ex::vertex({ 0.5f,  0.5f, 0.0f}, {0.0f, 1.0f, 1.0f}),
+        ex::vertex({-0.5f,  0.5f, 0.0f}, {1.0f, 0.0f, 1.0f}),
+    };
+
+    VkBufferCreateInfo buffer_create_info = {};
+    buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_create_info.size = sizeof(ex::vertex) * vertices.size();
+    buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    buffer_create_info.queueFamilyIndexCount = 0;
+    buffer_create_info.pQueueFamilyIndices = nullptr;
+    VK_CHECK(vkCreateBuffer(m_logical_device,
+                            &buffer_create_info,
+                            m_allocator,
+                            &m_vertex_buffer));
+
+    VkMemoryRequirements memory_requirements;
+    vkGetBufferMemoryRequirements(m_logical_device,
+                                  m_vertex_buffer,
+                                  &memory_requirements);
+    
+    VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
+    vkGetPhysicalDeviceMemoryProperties(m_physical_device,
+                                        &physical_device_memory_properties);
+
+    uint32_t memory_properties =
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    
+    uint32_t memory_type_index = 0;
+    // TODO: check error
+    for (uint32_t i = 0; i < physical_device_memory_properties.memoryTypeCount; ++i) {
+        if ((memory_requirements.memoryTypeBits & (1 << i)) &&
+            (physical_device_memory_properties.memoryTypes[i].propertyFlags & memory_properties)) {
+            memory_type_index = i;
+            break;
+        }
+    }
+    
+    VkMemoryAllocateInfo memory_allocate_info = {};
+    memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memory_allocate_info.allocationSize = memory_requirements.size;
+    memory_allocate_info.memoryTypeIndex = memory_type_index;
+    VK_CHECK(vkAllocateMemory(m_logical_device,
+                              &memory_allocate_info,
+                              m_allocator,
+                              &m_vertex_buffer_memory));
+
+    vkBindBufferMemory(m_logical_device,
+                       m_vertex_buffer,
+                       m_vertex_buffer_memory,
+                       0);
+
+    void *raw_data;
+    vkMapMemory(m_logical_device,
+                m_vertex_buffer_memory,
+                0,
+                buffer_create_info.size,
+                0,
+                &raw_data);
+    memcpy(raw_data, vertices.data(), buffer_create_info.size);
+    vkUnmapMemory(m_logical_device, m_vertex_buffer_memory);
 }
 
 void

@@ -6,6 +6,25 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
+namespace ex {
+    struct vec3 {
+        float x;
+        float y;
+        float z;
+    };
+    
+    class vertex {
+    public:
+        vertex(vec3 pos, vec3 color)
+            : pos(pos), color(color) {
+        }
+        
+    public:
+        vec3 pos;
+        vec3 color;
+    };
+}
+
 namespace ex::vulkan {
     class backend {
     public:
@@ -24,7 +43,8 @@ namespace ex::vulkan {
         void allocate_command_buffers();
         void create_sync_structures();
         void create_pipeline();
-
+        void create_vertex_buffer();
+        
         void recreate_swapchain(uint32_t width, uint32_t height);
 
         VkDevice logical_device() {
@@ -82,5 +102,8 @@ namespace ex::vulkan {
         VkRect2D m_pipeline_scissor;
         VkPipelineLayout m_pipeline_layout;
         uint32_t m_pipeline_subpass;
+
+        VkBuffer m_vertex_buffer;
+        VkDeviceMemory m_vertex_buffer_memory;
     };
 }

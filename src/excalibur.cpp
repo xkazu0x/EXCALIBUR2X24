@@ -42,6 +42,8 @@ int main() {
     vulkan_backend->create_sync_structures();
     vulkan_backend->create_pipeline();
     
+    vulkan_backend->create_vertex_buffer();
+    
     while (window->is_active()) {
         window->update();
         if (!vulkan_backend->render()) {
