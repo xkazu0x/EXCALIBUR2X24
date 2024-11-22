@@ -44,6 +44,7 @@ namespace ex::vulkan {
         void create_sync_structures();
         void create_pipeline();
         void create_vertex_buffer(std::vector<ex::vertex> &vertices);
+        void create_index_buffer(std::vector<uint32_t> &indices);
         
         void recreate_swapchain(uint32_t width, uint32_t height);
 
@@ -109,7 +110,10 @@ namespace ex::vulkan {
         uint32_t m_pipeline_subpass;
 
         VkBuffer m_vertex_buffer;
+        VkBuffer m_index_buffer;
         VkDeviceMemory m_vertex_buffer_memory;
+        VkDeviceMemory m_index_buffer_memory;
         uint32_t m_vertex_count;
+        uint32_t m_index_count;
     };
 }

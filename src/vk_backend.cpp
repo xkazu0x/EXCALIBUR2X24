@@ -41,6 +41,20 @@ void
 ex::vulkan::backend::shutdown() {
     vkDeviceWaitIdle(m_logical_device);
 
+    if (m_index_buffer_memory) {
+        vkFreeMemory(m_logical_device,
+                     m_index_buffer_memory,
+                     m_allocator);
+        m_index_buffer_memory = 0;
+    }
+    
+    if (m_index_buffer) {
+        vkDestroyBuffer(m_logical_device,
+                        m_index_buffer,
+                        m_allocator);
+        m_index_buffer = 0;
+    }
+    
     if (m_vertex_buffer_memory) {
         vkFreeMemory(m_logical_device,
                      m_vertex_buffer_memory,
@@ -223,12 +237,14 @@ ex::vulkan::backend::render() {
     m_pipeline_scissor.extent = m_swapchain_extent;
     vkCmdSetScissor(m_command_buffers[next_image_index], 0, 1, &m_pipeline_scissor);
 
-    VkBuffer buffers[] = {m_vertex_buffer};
+    VkBuffer vertex_buffers[] = {m_vertex_buffer};
     VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(m_command_buffers[next_image_index], 0, 1, buffers, offsets);
+    vkCmdBindVertexBuffers(m_command_buffers[next_image_index], 0, 1, vertex_buffers, offsets);
+    vkCmdBindIndexBuffer(m_command_buffers[next_image_index], m_index_buffer, 0, VK_INDEX_TYPE_UINT32);
     
-    vkCmdDraw(m_command_buffers[next_image_index], m_vertex_count, 1, 0, 0);
-
+    //vkCmdDraw(m_command_buffers[next_image_index], m_vertex_count, 1, 0, 0);
+    vkCmdDrawIndexed(m_command_buffers[next_image_index], m_index_count, 1, 0, 0, 0);
+    
     vkCmdEndRenderPass(m_command_buffers[next_image_index]);
     VK_CHECK(vkEndCommandBuffer(m_command_buffers[next_image_index]));
 
@@ -1062,6 +1078,71 @@ ex::vulkan::backend::create_vertex_buffer(std::vector<ex::vertex> &vertices) {
     buffer_copy.dstOffset = 0;
     buffer_copy.size = buffer_size;
     vkCmdCopyBuffer(command_buffer, staging_buffer, m_vertex_buffer, 1, &buffer_copy);
+    
+    VK_CHECK(vkEndCommandBuffer(command_buffer));
+
+    VkSubmitInfo submit_info = {};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &command_buffer;
+    VK_CHECK(vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE));
+
+    vkQueueWaitIdle(m_graphics_queue);
+    vkFreeCommandBuffers(m_logical_device, m_command_pool, 1, &command_buffer);
+    
+    vkDestroyBuffer(m_logical_device, staging_buffer, m_allocator);
+    vkFreeMemory(m_logical_device, staging_buffer_memory, m_allocator);
+}
+
+void
+ex::vulkan::backend::create_index_buffer(std::vector<uint32_t> &indices) {
+    m_index_count = static_cast<uint32_t>(indices.size());
+    VkDeviceSize buffer_size = sizeof(uint32_t) * m_index_count;
+
+    VkBuffer staging_buffer;
+    VkDeviceMemory staging_buffer_memory;
+    create_buffer(buffer_size,
+                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                  staging_buffer,
+                  staging_buffer_memory);
+
+    void *data;
+    vkMapMemory(m_logical_device,
+                staging_buffer_memory,
+                0,
+                buffer_size,
+                0,
+                &data);
+    memcpy(data, indices.data(), (size_t) buffer_size);
+    vkUnmapMemory(m_logical_device, staging_buffer_memory);
+        
+    create_buffer(buffer_size,
+                  VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                  m_index_buffer, m_index_buffer_memory);
+
+    VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
+    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    command_buffer_allocate_info.commandPool = m_command_pool;
+    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    command_buffer_allocate_info.commandBufferCount = 1;
+
+    VkCommandBuffer command_buffer;
+    VK_CHECK(vkAllocateCommandBuffers(m_logical_device,
+                                      &command_buffer_allocate_info,
+                                      &command_buffer));
+
+    VkCommandBufferBeginInfo command_buffer_begin_info = {};
+    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info));
+
+    VkBufferCopy buffer_copy;
+    buffer_copy.srcOffset = 0;
+    buffer_copy.dstOffset = 0;
+    buffer_copy.size = buffer_size;
+    vkCmdCopyBuffer(command_buffer, staging_buffer, m_index_buffer, 1, &buffer_copy);
     
     VK_CHECK(vkEndCommandBuffer(command_buffer));
 

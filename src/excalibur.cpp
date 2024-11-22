@@ -45,12 +45,19 @@ int main() {
     vulkan_backend->create_pipeline();
 
     std::vector<ex::vertex> vertices = {
-        ex::vertex({ 0.0f, -0.5f, 0.0f}, {1.0f, 1.0f, 0.0f}),
-        ex::vertex({ 0.5f,  0.5f, 0.0f}, {0.0f, 1.0f, 1.0f}),
-        ex::vertex({-0.5f,  0.5f, 0.0f}, {1.0f, 0.0f, 1.0f}),
+        ex::vertex({-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 1.0f}),
+        ex::vertex({ 0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 0.0f}),
+        ex::vertex({-0.5f,  0.5f, 0.0f}, {0.0f, 1.0f, 1.0f}),
+        ex::vertex({ 0.5f, -0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}),
+    };
+
+    std::vector<uint32_t> indices = {
+        0, 1, 2,
+        0, 3, 1,
     };
     
     vulkan_backend->create_vertex_buffer(vertices);
+    vulkan_backend->create_index_buffer(indices);
     
     while (window->is_active()) {
         window->update();
