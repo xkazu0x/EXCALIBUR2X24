@@ -43,7 +43,7 @@ namespace ex::vulkan {
         void allocate_command_buffers();
         void create_sync_structures();
         void create_pipeline();
-        void create_vertex_buffer();
+        void create_vertex_buffer(std::vector<ex::vertex> &vertices);
         
         void recreate_swapchain(uint32_t width, uint32_t height);
 
@@ -54,6 +54,11 @@ namespace ex::vulkan {
     private:
         std::vector<char> read_file(const char *filepath);
         VkShaderModule create_shader_module(const std::vector<char> &shader_module);
+        void create_buffer(VkDeviceSize size,
+                           VkBufferUsageFlags usage,
+                           VkMemoryPropertyFlags properties,
+                           VkBuffer &buffer,
+                           VkDeviceMemory &buffer_memory);
         
     private:
         VkAllocationCallbacks *m_allocator;
@@ -105,5 +110,6 @@ namespace ex::vulkan {
 
         VkBuffer m_vertex_buffer;
         VkDeviceMemory m_vertex_buffer_memory;
+        uint32_t m_vertex_count;
     };
 }

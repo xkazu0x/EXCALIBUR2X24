@@ -1,5 +1,4 @@
 #include "ex_window.h"
-#include "ex_logger.h"
 
 void ex::window::create(std::string title, uint32_t width, uint32_t height) {
     m_width = width;
@@ -123,7 +122,6 @@ LRESULT ex::window::process_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM l
     case WM_SIZE: {        
         m_width = LOWORD(lparam);
         m_height = HIWORD(lparam);
-        //EXDEBUG("WIDTH: %d | HEIGHT: %d", m_width, m_height);
     } break;
     }
 

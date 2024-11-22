@@ -34,20 +34,29 @@ int main() {
         return -1;
     }
 
-    vulkan_backend->create_command_pool();
     vulkan_backend->create_swapchain(window->width(), window->height());
     vulkan_backend->create_render_pass();
     vulkan_backend->create_framebuffers();
-    vulkan_backend->allocate_command_buffers();
     vulkan_backend->create_sync_structures();
-    vulkan_backend->create_pipeline();
     
-    vulkan_backend->create_vertex_buffer();
+    vulkan_backend->create_command_pool();    
+    vulkan_backend->allocate_command_buffers();
+    
+    vulkan_backend->create_pipeline();
+
+    std::vector<ex::vertex> vertices = {
+        ex::vertex({ 0.0f, -0.5f, 0.0f}, {1.0f, 1.0f, 0.0f}),
+        ex::vertex({ 0.5f,  0.5f, 0.0f}, {0.0f, 1.0f, 1.0f}),
+        ex::vertex({-0.5f,  0.5f, 0.0f}, {1.0f, 0.0f, 1.0f}),
+    };
+    
+    vulkan_backend->create_vertex_buffer(vertices);
     
     while (window->is_active()) {
         window->update();
         if (!vulkan_backend->render()) {
             vulkan_backend->recreate_swapchain(window->width(), window->height());
+            EXDEBUG("Width: %d | Height: %d", window->width(), window->height());
         }
     }
     

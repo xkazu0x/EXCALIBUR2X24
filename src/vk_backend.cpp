@@ -223,10 +223,11 @@ ex::vulkan::backend::render() {
     m_pipeline_scissor.extent = m_swapchain_extent;
     vkCmdSetScissor(m_command_buffers[next_image_index], 0, 1, &m_pipeline_scissor);
 
+    VkBuffer buffers[] = {m_vertex_buffer};
     VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(m_command_buffers[next_image_index], 0, 1, &m_vertex_buffer, offsets);
+    vkCmdBindVertexBuffers(m_command_buffers[next_image_index], 0, 1, buffers, offsets);
     
-    vkCmdDraw(m_command_buffers[next_image_index], 3, 1, 0, 0);
+    vkCmdDraw(m_command_buffers[next_image_index], m_vertex_count, 1, 0, 0);
 
     vkCmdEndRenderPass(m_command_buffers[next_image_index]);
     VK_CHECK(vkEndCommandBuffer(m_command_buffers[next_image_index]));
@@ -1013,76 +1014,74 @@ ex::vulkan::backend::create_pipeline() {
 }
 
 void
-ex::vulkan::backend::create_vertex_buffer() {
-    std::vector<ex::vertex> vertices = {
-        ex::vertex({ 0.0f, -0.5f, 0.0f}, {1.0f, 1.0f, 0.0f}),
-        ex::vertex({ 0.5f,  0.5f, 0.0f}, {0.0f, 1.0f, 1.0f}),
-        ex::vertex({-0.5f,  0.5f, 0.0f}, {1.0f, 0.0f, 1.0f}),
-    };
+ex::vulkan::backend::create_vertex_buffer(std::vector<ex::vertex> &vertices) {
+    m_vertex_count = static_cast<uint32_t>(vertices.size());
+    VkDeviceSize buffer_size = sizeof(ex::vertex) * m_vertex_count;
 
-    VkBufferCreateInfo buffer_create_info = {};
-    buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    buffer_create_info.size = sizeof(ex::vertex) * vertices.size();
-    buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    buffer_create_info.queueFamilyIndexCount = 0;
-    buffer_create_info.pQueueFamilyIndices = nullptr;
-    VK_CHECK(vkCreateBuffer(m_logical_device,
-                            &buffer_create_info,
-                            m_allocator,
-                            &m_vertex_buffer));
+    VkBuffer staging_buffer;
+    VkDeviceMemory staging_buffer_memory;
+    create_buffer(buffer_size,
+                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                  staging_buffer,
+                  staging_buffer_memory);
 
-    VkMemoryRequirements memory_requirements;
-    vkGetBufferMemoryRequirements(m_logical_device,
-                                  m_vertex_buffer,
-                                  &memory_requirements);
-    
-    VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
-    vkGetPhysicalDeviceMemoryProperties(m_physical_device,
-                                        &physical_device_memory_properties);
-
-    uint32_t memory_properties =
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    
-    uint32_t memory_type_index = 0;
-    // TODO: check error
-    for (uint32_t i = 0; i < physical_device_memory_properties.memoryTypeCount; ++i) {
-        if ((memory_requirements.memoryTypeBits & (1 << i)) &&
-            (physical_device_memory_properties.memoryTypes[i].propertyFlags & memory_properties)) {
-            memory_type_index = i;
-            break;
-        }
-    }
-    
-    VkMemoryAllocateInfo memory_allocate_info = {};
-    memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    memory_allocate_info.allocationSize = memory_requirements.size;
-    memory_allocate_info.memoryTypeIndex = memory_type_index;
-    VK_CHECK(vkAllocateMemory(m_logical_device,
-                              &memory_allocate_info,
-                              m_allocator,
-                              &m_vertex_buffer_memory));
-
-    vkBindBufferMemory(m_logical_device,
-                       m_vertex_buffer,
-                       m_vertex_buffer_memory,
-                       0);
-
-    void *raw_data;
+    void *data;
     vkMapMemory(m_logical_device,
-                m_vertex_buffer_memory,
+                staging_buffer_memory,
                 0,
-                buffer_create_info.size,
+                buffer_size,
                 0,
-                &raw_data);
-    memcpy(raw_data, vertices.data(), buffer_create_info.size);
-    vkUnmapMemory(m_logical_device, m_vertex_buffer_memory);
+                &data);
+    memcpy(data, vertices.data(), (size_t) buffer_size);
+    vkUnmapMemory(m_logical_device, staging_buffer_memory);
+        
+    create_buffer(buffer_size,
+                  VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                  m_vertex_buffer, m_vertex_buffer_memory);
+
+    VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
+    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    command_buffer_allocate_info.commandPool = m_command_pool;
+    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    command_buffer_allocate_info.commandBufferCount = 1;
+
+    VkCommandBuffer command_buffer;
+    VK_CHECK(vkAllocateCommandBuffers(m_logical_device,
+                                      &command_buffer_allocate_info,
+                                      &command_buffer));
+
+    VkCommandBufferBeginInfo command_buffer_begin_info = {};
+    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info));
+
+    VkBufferCopy buffer_copy;
+    buffer_copy.srcOffset = 0;
+    buffer_copy.dstOffset = 0;
+    buffer_copy.size = buffer_size;
+    vkCmdCopyBuffer(command_buffer, staging_buffer, m_vertex_buffer, 1, &buffer_copy);
+    
+    VK_CHECK(vkEndCommandBuffer(command_buffer));
+
+    VkSubmitInfo submit_info = {};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &command_buffer;
+    VK_CHECK(vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE));
+
+    vkQueueWaitIdle(m_graphics_queue);
+    vkFreeCommandBuffers(m_logical_device, m_command_pool, 1, &command_buffer);
+    
+    vkDestroyBuffer(m_logical_device, staging_buffer, m_allocator);
+    vkFreeMemory(m_logical_device, staging_buffer_memory, m_allocator);
 }
 
 void
 ex::vulkan::backend::recreate_swapchain(uint32_t width, uint32_t height) {
     if (width == 0 || height == 0) return;
+    EXINFO("+ SWAPCHAIN RECREATED");
     
     vkDeviceWaitIdle(m_logical_device);
     
@@ -1102,7 +1101,6 @@ ex::vulkan::backend::recreate_swapchain(uint32_t width, uint32_t height) {
 
     create_swapchain(width, height);
     create_framebuffers();    
-    EXINFO("+ SWAPCHAIN RECREATED");
 }
 
 std::vector<char>
@@ -1135,4 +1133,55 @@ ex::vulkan::backend::create_shader_module(const std::vector<char> &shader_code) 
                                   m_allocator,
                                   &out_shader_module));
     return out_shader_module;
+}
+
+void
+ex::vulkan::backend::create_buffer(VkDeviceSize size,
+                                   VkBufferUsageFlags usage,
+                                   VkMemoryPropertyFlags properties,
+                                   VkBuffer &buffer,
+                                   VkDeviceMemory &buffer_memory) {
+    VkBufferCreateInfo buffer_create_info = {};
+    buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_create_info.size = size;
+    buffer_create_info.usage = usage;
+    buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    buffer_create_info.queueFamilyIndexCount = 0;
+    buffer_create_info.pQueueFamilyIndices = nullptr;
+    VK_CHECK(vkCreateBuffer(m_logical_device,
+                            &buffer_create_info,
+                            m_allocator,
+                            &buffer));
+
+    VkMemoryRequirements memory_requirements;
+    vkGetBufferMemoryRequirements(m_logical_device,
+                                  buffer,
+                                  &memory_requirements);
+    
+    VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
+    vkGetPhysicalDeviceMemoryProperties(m_physical_device, &physical_device_memory_properties);
+    
+    uint32_t memory_type_index = 0;
+    // TODO: check error
+    for (uint32_t i = 0; i < physical_device_memory_properties.memoryTypeCount; ++i) {
+        if ((memory_requirements.memoryTypeBits & (1 << i)) &&
+            (physical_device_memory_properties.memoryTypes[i].propertyFlags & properties) == properties) {
+            memory_type_index = i;
+            break;
+        }
+    }
+    
+    VkMemoryAllocateInfo memory_allocate_info = {};
+    memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memory_allocate_info.allocationSize = memory_requirements.size;
+    memory_allocate_info.memoryTypeIndex = memory_type_index;
+    VK_CHECK(vkAllocateMemory(m_logical_device,
+                              &memory_allocate_info,
+                              m_allocator,
+                              &buffer_memory));
+
+    vkBindBufferMemory(m_logical_device,
+                       buffer,
+                       buffer_memory,
+                       0);
 }
