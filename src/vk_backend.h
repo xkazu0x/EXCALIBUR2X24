@@ -4,24 +4,21 @@
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
+
+#include <glm/glm.hpp>
+
 #include <vector>
 
-namespace ex {
-    struct vec3 {
-        float x;
-        float y;
-        float z;
-    };
-    
+namespace ex {    
     class vertex {
     public:
-        vertex(vec3 pos, vec3 color)
+        vertex(glm::vec3 pos, glm::vec3 color)
             : pos(pos), color(color) {
         }
         
     public:
-        vec3 pos;
-        vec3 color;
+        glm::vec3 pos;
+        glm::vec3 color;
     };
 }
 
