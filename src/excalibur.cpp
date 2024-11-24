@@ -1,9 +1,8 @@
 #include "ex_window.h"
 #include "ex_logger.h"
-
 #include "vk_backend.h"
-
 #include <memory>
+#include <chrono>
 
 int main() {
     EXFATAL("-+=+EXCALIBUR+=+-");
@@ -41,7 +40,8 @@ int main() {
     
     vulkan_backend->create_command_pool();    
     vulkan_backend->allocate_command_buffers();
-    
+
+    vulkan_backend->create_descriptor_set_layout();
     vulkan_backend->create_pipeline();
 
     std::vector<ex::vertex> vertices = {
@@ -58,9 +58,19 @@ int main() {
     
     vulkan_backend->create_vertex_buffer(vertices);
     vulkan_backend->create_index_buffer(indices);
-    
+    vulkan_backend->create_uniform_buffer();
+
+    vulkan_backend->create_descriptor_pool();
+    vulkan_backend->create_descriptor_set();
+
+    auto last_time = std::chrono::high_resolution_clock::now();
     while (window->is_active()) {
         window->update();
+
+        auto now = std::chrono::high_resolution_clock::now();
+        float delta = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count() / 1000.0f;        
+        vulkan_backend->update(delta);
+        
         if (!vulkan_backend->render()) {
             vulkan_backend->recreate_swapchain(window->width(), window->height());
             EXDEBUG("Width: %d | Height: %d", window->width(), window->height());

@@ -4,10 +4,11 @@
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
-
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <vector>
+#include <memory>
 
 namespace ex {    
     class vertex {
@@ -26,6 +27,7 @@ namespace ex::vulkan {
     class backend {
     public:
         void shutdown();
+        void update(float delta);
         bool render();
 
         bool create_instance();
@@ -39,9 +41,16 @@ namespace ex::vulkan {
         void create_framebuffers();
         void allocate_command_buffers();
         void create_sync_structures();
+
+        void create_descriptor_set_layout();
         void create_pipeline();
+        
         void create_vertex_buffer(std::vector<ex::vertex> &vertices);
         void create_index_buffer(std::vector<uint32_t> &indices);
+        void create_uniform_buffer();
+
+        void create_descriptor_pool();
+        void create_descriptor_set();
         
         void recreate_swapchain(uint32_t width, uint32_t height);
 
@@ -112,5 +121,14 @@ namespace ex::vulkan {
         VkDeviceMemory m_index_buffer_memory;
         uint32_t m_vertex_count;
         uint32_t m_index_count;
+
+        VkBuffer m_uniform_buffer;
+        VkDeviceMemory m_uniform_buffer_memory;
+
+        VkDescriptorSetLayout m_descriptor_set_layout;
+        VkDescriptorPool m_descriptor_pool;
+        VkDescriptorSet m_descriptor_set;
+
+        glm::mat4 m_mvp;
     };
 }

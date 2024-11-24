@@ -41,6 +41,20 @@ void
 ex::vulkan::backend::shutdown() {
     vkDeviceWaitIdle(m_logical_device);
 
+    vkDestroyDescriptorPool(m_logical_device,
+                            m_descriptor_pool,
+                            m_allocator);
+    vkDestroyDescriptorSetLayout(m_logical_device,
+                                 m_descriptor_set_layout,
+                                 m_allocator);
+    
+    vkFreeMemory(m_logical_device,
+                 m_uniform_buffer_memory,
+                 m_allocator);
+    vkDestroyBuffer(m_logical_device,
+                    m_uniform_buffer,
+                    m_allocator);
+    
     if (m_index_buffer_memory) {
         vkFreeMemory(m_logical_device,
                      m_index_buffer_memory,
@@ -175,6 +189,32 @@ ex::vulkan::backend::shutdown() {
     }
 }
 
+void
+ex::vulkan::backend::update(float delta) {
+    glm::mat4 model = glm::rotate(glm::mat4(1.0f),
+                                  delta * glm::radians(30.0f),
+                                  glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, -1.0f),
+                                 glm::vec3(0.0f, 0.0f, 1.0f),
+                                 glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::mat4 projection = glm::perspective(glm::radians(80.0f),
+                                            m_swapchain_extent.width / (float) m_swapchain_extent.height,
+                                            0.01f,
+                                            10.0f);
+    m_mvp = projection * view * model;
+
+    void *data;
+    vkMapMemory(m_logical_device,
+                m_uniform_buffer_memory,
+                0,
+                sizeof(m_mvp),
+                0,
+                &data);
+    memcpy(data, &m_mvp, sizeof(m_mvp));
+    vkUnmapMemory(m_logical_device,
+                  m_uniform_buffer_memory);
+}
+
 bool
 ex::vulkan::backend::render() {
     VK_CHECK(vkWaitForFences(m_logical_device,
@@ -241,6 +281,15 @@ ex::vulkan::backend::render() {
     VkDeviceSize offsets[] = {0};
     vkCmdBindVertexBuffers(m_command_buffers[next_image_index], 0, 1, vertex_buffers, offsets);
     vkCmdBindIndexBuffer(m_command_buffers[next_image_index], m_index_buffer, 0, VK_INDEX_TYPE_UINT32);
+
+    vkCmdBindDescriptorSets(m_command_buffers[next_image_index],
+                             VK_PIPELINE_BIND_POINT_GRAPHICS,
+                             m_pipeline_layout,
+                             0,
+                             1,
+                             &m_descriptor_set,
+                             0,
+                             nullptr);
     
     //vkCmdDraw(m_command_buffers[next_image_index], m_vertex_count, 1, 0, 0);
     vkCmdDrawIndexed(m_command_buffers[next_image_index], m_index_count, 1, 0, 0, 0);
@@ -826,6 +875,27 @@ ex::vulkan::backend::create_sync_structures() {
 }
 
 void
+ex::vulkan::backend::create_descriptor_set_layout() {
+    VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {};
+    descriptor_set_layout_binding.binding = 0;
+    descriptor_set_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptor_set_layout_binding.descriptorCount = 1;
+    descriptor_set_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    descriptor_set_layout_binding.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {};
+    descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptor_set_layout_create_info.pNext = nullptr;
+    descriptor_set_layout_create_info.flags = 0;
+    descriptor_set_layout_create_info.bindingCount = 1;
+    descriptor_set_layout_create_info.pBindings = &descriptor_set_layout_binding;
+    VK_CHECK(vkCreateDescriptorSetLayout(m_logical_device,
+                                         &descriptor_set_layout_create_info,
+                                         m_allocator,
+                                         &m_descriptor_set_layout));
+}
+
+void
 ex::vulkan::backend::create_pipeline() {
     // shaders
     std::vector<char> vertex_code = read_file("res/shaders/triangle.vert.spv");
@@ -907,7 +977,7 @@ ex::vulkan::backend::create_pipeline() {
     rasterization_state_create_info.rasterizerDiscardEnable = VK_FALSE;
     rasterization_state_create_info.polygonMode = VK_POLYGON_MODE_FILL;
     rasterization_state_create_info.cullMode = VK_CULL_MODE_NONE;
-    rasterization_state_create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterization_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
     rasterization_state_create_info.depthBiasEnable = VK_FALSE;
     rasterization_state_create_info.depthBiasConstantFactor = 0.0f;
     rasterization_state_create_info.depthBiasClamp = 0.0f;
@@ -978,8 +1048,8 @@ ex::vulkan::backend::create_pipeline() {
     // pipeline layout
     VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
     pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipeline_layout_create_info.setLayoutCount = 0;
-    pipeline_layout_create_info.pSetLayouts = nullptr;
+    pipeline_layout_create_info.setLayoutCount = 1;
+    pipeline_layout_create_info.pSetLayouts = &m_descriptor_set_layout;
     pipeline_layout_create_info.pushConstantRangeCount = 0;
     pipeline_layout_create_info.pPushConstantRanges = nullptr;
     VK_CHECK(vkCreatePipelineLayout(m_logical_device,
@@ -1157,6 +1227,70 @@ ex::vulkan::backend::create_index_buffer(std::vector<uint32_t> &indices) {
     
     vkDestroyBuffer(m_logical_device, staging_buffer, m_allocator);
     vkFreeMemory(m_logical_device, staging_buffer_memory, m_allocator);
+}
+
+void
+ex::vulkan::backend::create_uniform_buffer() {
+    VkDeviceSize buffer_size = sizeof(m_mvp);
+    create_buffer(buffer_size,
+                  VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                  m_uniform_buffer,
+                  m_uniform_buffer_memory);
+}
+
+void
+ex::vulkan::backend::create_descriptor_pool() {
+    VkDescriptorPoolSize descriptor_pool_size = {};
+    descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    descriptor_pool_size.descriptorCount = 1;
+
+    VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
+    descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    descriptor_pool_create_info.pNext = nullptr;
+    descriptor_pool_create_info.flags = 0;
+    descriptor_pool_create_info.maxSets = 1;
+    descriptor_pool_create_info.poolSizeCount = 1;
+    descriptor_pool_create_info.pPoolSizes = &descriptor_pool_size;
+    VK_CHECK(vkCreateDescriptorPool(m_logical_device,
+                                    &descriptor_pool_create_info,
+                                    m_allocator,
+                                    &m_descriptor_pool));
+}
+
+void
+ex::vulkan::backend::create_descriptor_set() {
+    VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {};
+    descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    descriptor_set_allocate_info.pNext = nullptr;
+    descriptor_set_allocate_info.descriptorPool = m_descriptor_pool;
+    descriptor_set_allocate_info.descriptorSetCount = 1;
+    descriptor_set_allocate_info.pSetLayouts = &m_descriptor_set_layout;
+    VK_CHECK(vkAllocateDescriptorSets(m_logical_device,
+                                      &descriptor_set_allocate_info,
+                                      &m_descriptor_set));
+
+    VkDescriptorBufferInfo descriptor_buffer_info = {};
+    descriptor_buffer_info.buffer = m_uniform_buffer;
+    descriptor_buffer_info.offset = 0;
+    descriptor_buffer_info.range = sizeof(m_mvp);
+
+    VkWriteDescriptorSet write_descriptor_set = {};
+    write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write_descriptor_set.pNext = nullptr;
+    write_descriptor_set.dstSet = m_descriptor_set;
+    write_descriptor_set.dstBinding = 0;
+    write_descriptor_set.dstArrayElement = 0;
+    write_descriptor_set.descriptorCount = 1;
+    write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    write_descriptor_set.pImageInfo = nullptr;
+    write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
+    write_descriptor_set.pTexelBufferView = nullptr;
+    vkUpdateDescriptorSets(m_logical_device,
+                           1,
+                           &write_descriptor_set,
+                           0,
+                           nullptr);
 }
 
 void
