@@ -4,22 +4,25 @@
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
+
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
 #include <vector>
 #include <memory>
 
-namespace ex {    
+namespace ex {
     class vertex {
     public:
-        vertex(glm::vec3 pos, glm::vec3 color)
-            : pos(pos), color(color) {
+        vertex(glm::vec3 pos, glm::vec3 color, glm::vec2 uv)
+            : pos(pos), color(color), uv(uv) {
         }
         
     public:
         glm::vec3 pos;
         glm::vec3 color;
+        glm::vec2 uv;
     };
 }
 
@@ -42,9 +45,13 @@ namespace ex::vulkan {
         void allocate_command_buffers();
         void create_sync_structures();
 
+        bool create_depth_resources();
+        
         void create_descriptor_set_layout();
         void create_pipeline();
-        
+
+        void create_texture_image(const char *file);
+
         void create_vertex_buffer(std::vector<ex::vertex> &vertices);
         void create_index_buffer(std::vector<uint32_t> &indices);
         void create_uniform_buffer();
@@ -66,6 +73,9 @@ namespace ex::vulkan {
                            VkMemoryPropertyFlags properties,
                            VkBuffer &buffer,
                            VkDeviceMemory &buffer_memory);
+
+        VkCommandBuffer begin_single_time_commands();
+        void end_single_time_commands(VkCommandBuffer command_buffer);
         
     private:
         VkAllocationCallbacks *m_allocator;
@@ -95,9 +105,13 @@ namespace ex::vulkan {
         std::vector<VkImageView> m_swapchain_image_views;
         std::vector<VkFramebuffer> m_swapchain_framebuffers;
 
-        std::vector<VkImage> m_depth_images;
-        std::vector<VkImageView> m_depth_image_views;
-        std::vector<VkDeviceMemory> m_depth_image_memories;
+        //std::vector<VkImage> m_depth_images;
+        //std::vector<VkImageView> m_depth_image_views;
+        //std::vector<VkDeviceMemory> m_depth_image_memories;
+
+        VkImage m_depth_image;
+        VkImageView m_depth_image_view;
+        VkDeviceMemory m_depth_image_memory;
         
         VkSurfaceCapabilitiesKHR m_swapchain_capabilities;
         std::vector<VkSurfaceFormatKHR> m_swapchain_formats;
@@ -115,6 +129,12 @@ namespace ex::vulkan {
         VkPipelineLayout m_pipeline_layout;
         uint32_t m_pipeline_subpass;
 
+        VkImage m_texture_image;
+        VkDeviceMemory m_texture_image_memory;
+        VkImageLayout m_texture_image_layout;
+        VkImageView m_texture_image_view;
+        VkSampler m_texture_image_sampler;
+        
         VkBuffer m_vertex_buffer;
         VkBuffer m_index_buffer;
         VkDeviceMemory m_vertex_buffer_memory;
@@ -128,7 +148,7 @@ namespace ex::vulkan {
         VkDescriptorSetLayout m_descriptor_set_layout;
         VkDescriptorPool m_descriptor_pool;
         VkDescriptorSet m_descriptor_set;
-
+        
         glm::mat4 m_mvp;
     };
 }
