@@ -40,6 +40,33 @@ debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
     return VK_FALSE;
 }
 
+bool
+ex::vulkan::backend::initialize(ex::window *window) {
+    if (!create_instance()) {
+        EXERROR("Failed to create vulkan instance");
+        return false;
+    }
+
+    setup_debug_messenger();
+
+    if (!window->create_vulkan_surface(m_instance, m_allocator, &m_surface)) {
+        EXERROR("Failed to create vulkan surface");
+        return false;
+    }
+
+    if (!select_physical_device()) {
+        EXERROR("Failed to select vulkan physical device");
+        return false;
+    }
+
+    if (!create_logical_device()) {
+        EXERROR("Failed to create vulkan logical device");
+        return false;
+    }
+    
+    return true;
+}
+
 void
 ex::vulkan::backend::shutdown() {
     vkDeviceWaitIdle(m_logical_device);
@@ -469,15 +496,6 @@ ex::vulkan::backend::setup_debug_messenger() {
 }
 
 bool
-ex::vulkan::backend::create_surface(ex::window *window) {
-    if (!window->create_vulkan_surface(m_instance, m_allocator, &m_surface)) {
-        return false;
-    }
-
-    return true;
-}
-
-bool
 ex::vulkan::backend::select_physical_device() {
     uint32_t physical_device_count = 0;
     VK_CHECK(vkEnumeratePhysicalDevices(m_instance,
@@ -768,6 +786,7 @@ ex::vulkan::backend::create_swapchain(uint32_t width, uint32_t height) {
     // swapchain image views
     m_swapchain_image_views.resize(swapchain_image_count);
     for (uint32_t i = 0; i < swapchain_image_count; i++) {
+        /*
         VkImageViewCreateInfo image_view_create_info = {};
         image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         image_view_create_info.image = m_swapchain_images[i];
@@ -786,6 +805,10 @@ ex::vulkan::backend::create_swapchain(uint32_t width, uint32_t height) {
                                    &image_view_create_info,
                                    m_allocator,
                                    &m_swapchain_image_views[i]));
+        */
+        m_swapchain_image_views[i] = create_image_view(m_swapchain_images[i],
+                                                       VK_IMAGE_VIEW_TYPE_2D,
+                                                       m_swapchain_format.format);
     }
 }
 
@@ -1361,32 +1384,16 @@ ex::vulkan::backend::create_texture_image(const char *file) {
 
     m_texture_image_layout = image_memory_barrier1.newLayout;
     
-    // detroy staging buffer
+    // Destroy staging buffer
     vkDestroyBuffer(m_logical_device, staging_buffer, m_allocator);
     vkFreeMemory(m_logical_device, staging_buffer_memory, m_allocator);
 
-    // create image view
-    VkImageViewCreateInfo image_view_create_info = {};
-    image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    image_view_create_info.pNext = nullptr;
-    image_view_create_info.flags = 0;
-    image_view_create_info.image = m_texture_image;
-    image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    image_view_create_info.format = VK_FORMAT_R8G8B8A8_UNORM;
-    image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-    image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-    image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-    image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-    image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    image_view_create_info.subresourceRange.baseMipLevel = 0;
-    image_view_create_info.subresourceRange.levelCount = 1;
-    image_view_create_info.subresourceRange.baseArrayLayer = 0;
-    image_view_create_info.subresourceRange.layerCount = 1;
-    VK_CHECK(vkCreateImageView(m_logical_device,
-                               &image_view_create_info,
-                               m_allocator,
-                               &m_texture_image_view));
+    // Create image view
+    m_texture_image_view = create_image_view(m_texture_image,
+                                             VK_IMAGE_VIEW_TYPE_2D,
+                                             VK_FORMAT_R8G8B8A8_UNORM);
 
+    // Create sampler
     VkSamplerCreateInfo sampler_create_info = {};
     sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     sampler_create_info.pNext = nullptr;
@@ -1648,6 +1655,35 @@ ex::vulkan::backend::recreate_swapchain(uint32_t width, uint32_t height) {
 
     create_swapchain(width, height);
     create_framebuffers();    
+}
+
+VkImageView
+ex::vulkan::backend::create_image_view(VkImage image,
+                                       VkImageViewType type,
+                                       VkFormat format) {
+    VkImageViewCreateInfo image_view_create_info = {};
+    image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    image_view_create_info.pNext = nullptr;
+    image_view_create_info.flags = 0;
+    image_view_create_info.image = image;
+    image_view_create_info.viewType = type;
+    image_view_create_info.format = format;
+    image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+    image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+    image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+    image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+    image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    image_view_create_info.subresourceRange.baseMipLevel = 0;
+    image_view_create_info.subresourceRange.levelCount = 1;
+    image_view_create_info.subresourceRange.baseArrayLayer = 0;
+    image_view_create_info.subresourceRange.layerCount = 1;
+
+    VkImageView out_image_view;
+    VK_CHECK(vkCreateImageView(m_logical_device,
+                               &image_view_create_info,
+                               m_allocator,
+                               &out_image_view));
+    return out_image_view;
 }
 
 std::vector<char>

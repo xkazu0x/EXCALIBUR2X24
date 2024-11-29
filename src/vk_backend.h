@@ -29,15 +29,11 @@ namespace ex {
 namespace ex::vulkan {
     class backend {
     public:
+        bool initialize(ex::window *window);
         void shutdown();
         void update(float delta);
         bool render();
 
-        bool create_instance();
-        void setup_debug_messenger();
-        bool create_surface(ex::window *window);
-        bool select_physical_device();
-        bool create_logical_device();
         void create_command_pool();
         void create_swapchain(uint32_t width, uint32_t height);
         void create_render_pass();
@@ -66,6 +62,15 @@ namespace ex::vulkan {
         }
 
     private:
+        bool create_instance();
+        void setup_debug_messenger();
+        bool select_physical_device();
+        bool create_logical_device();
+
+        VkImageView create_image_view(VkImage image,
+                                      VkImageViewType type,
+                                      VkFormat format);
+        
         std::vector<char> read_file(const char *filepath);
         VkShaderModule create_shader_module(const std::vector<char> &shader_module);
         void create_buffer(VkDeviceSize size,
@@ -87,10 +92,8 @@ namespace ex::vulkan {
 
         VkDevice m_logical_device;
         VkPhysicalDevice m_physical_device;
-        
         uint32_t m_graphics_queue_index;
         uint32_t m_present_queue_index;
-
         VkQueue m_graphics_queue;
         VkQueue m_present_queue;
 
