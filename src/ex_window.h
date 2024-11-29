@@ -11,9 +11,9 @@
 
 namespace ex {
     enum window_state {
-        EX_WINDOW_STATE_HIDDEN,
-        EX_WINDOW_STATE_ACTIVE,
-        EX_WINDOW_STATE_CLOSED,
+        EX_WINDOW_STATE_HIDDEN = 0x00,
+        EX_WINDOW_STATE_ACTIVE = 0x01,
+        EX_WINDOW_STATE_CLOSED = 0x02,
     };
     
     class window {
@@ -27,6 +27,7 @@ namespace ex {
         bool is_active();
         uint32_t width();
         uint32_t height();
+        int8_t get_key(int32_t key_code);
 
         bool create_vulkan_surface(VkInstance instance,
                                    VkAllocationCallbacks *allocator,
@@ -47,6 +48,6 @@ namespace ex {
 
         std::string m_title { };
         uint32_t m_width { };
-        uint32_t m_height { };
+        uint32_t m_height { };        
     };
 }

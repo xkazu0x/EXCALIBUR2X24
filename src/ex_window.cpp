@@ -78,6 +78,11 @@ uint32_t ex::window::height() {
     return m_height;
 }
 
+int8_t
+ex::window::get_key(int32_t key_code) {
+    return GetAsyncKeyState(key_code);
+}
+
 bool ex::window::create_vulkan_surface(VkInstance instance,
                                        VkAllocationCallbacks *allocator,
                                        VkSurfaceKHR *surface) {
