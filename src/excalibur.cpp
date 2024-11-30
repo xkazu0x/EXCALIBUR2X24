@@ -5,13 +5,24 @@
 #include <memory>
 #include <chrono>
 
+ex::window window;
+ex::input input;
+const auto vulkan_backend = std::make_unique<ex::vulkan::backend>();
+
+void key_presses() {
+    if (input.key_pressed(VK_ESCAPE)) {
+        window.close();
+    }
+    if (input.key_pressed(VK_F1)) {
+        window.change_display_mode();
+    }
+}
+
 int main() {
     EXFATAL("-+=+EXCALIBUR+=+-");
-    ex::window window;
-    window.create("EXCALIBUR", 960, 540);
+    window.create("EXCALIBUR", 960, 540, true);
     window.show();
-    
-    const auto vulkan_backend = std::make_unique<ex::vulkan::backend>();
+
     if (!vulkan_backend->initialize(&window)) {
         EXFATAL("Failed to initialize vulkan backend");
         return -1;
@@ -24,7 +35,7 @@ int main() {
 
     //vulkan_backend->create_depth_resources();
     
-    vulkan_backend->create_command_pool();    
+    vulkan_backend->create_command_pool();
     vulkan_backend->allocate_command_buffers();
 
     vulkan_backend->create_descriptor_set_layout();
@@ -81,15 +92,11 @@ int main() {
     vulkan_backend->create_descriptor_pool();
     vulkan_backend->create_descriptor_set();
 
-    ex::input input;
     auto last_time = std::chrono::high_resolution_clock::now();
     while (window.is_active()) {
         window.update();
         input.update(&window);
-        
-        if (input.key_pressed(VK_ESCAPE)) {
-            window.close();
-        }
+        key_presses();
         
         auto now = std::chrono::high_resolution_clock::now();
         float delta = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count() / 1000.0f;
@@ -97,7 +104,6 @@ int main() {
         
         if (!vulkan_backend->render()) {
             vulkan_backend->recreate_swapchain(window.width(), window.height());
-            EXDEBUG("Width: %d | Height: %d", window.width(), window.height());
         }
     }
     

@@ -257,6 +257,7 @@ ex::vulkan::backend::update(float delta) {
                                             m_swapchain_extent.width / (float) m_swapchain_extent.height,
                                             0.01f,
                                             10.0f);
+
     m_mvp = projection * view * model;
 
     void *data;
@@ -1635,7 +1636,8 @@ ex::vulkan::backend::create_descriptor_set() {
 void
 ex::vulkan::backend::recreate_swapchain(uint32_t width, uint32_t height) {
     if (width == 0 || height == 0) return;
-    EXINFO("+ SWAPCHAIN RECREATED");
+    EXINFO("-+SWAPCHAIN_RECREATED+-");
+    EXDEBUG("Width: %d -+- Height: %d", width, height);
     
     vkDeviceWaitIdle(m_logical_device);
     
@@ -1654,7 +1656,7 @@ ex::vulkan::backend::recreate_swapchain(uint32_t width, uint32_t height) {
     vkDestroySwapchainKHR(m_logical_device, m_swapchain, m_allocator);
 
     create_swapchain(width, height);
-    create_framebuffers();    
+    create_framebuffers();
 }
 
 VkImageView

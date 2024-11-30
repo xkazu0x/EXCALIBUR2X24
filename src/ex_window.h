@@ -10,15 +10,28 @@
 #include <cstdint>
 
 namespace ex {
+    struct window_info {
+        std::string title;
+        uint32_t current_width;
+        uint32_t current_height;
+        uint32_t windowed_width;
+        uint32_t windowed_height;
+        uint32_t fullscreen_width;
+        uint32_t fullscreen_height;
+        int32_t xpos;
+        int32_t ypos;
+        bool fullscreen;
+    };
+
     enum window_state {
         EX_WINDOW_STATE_HIDDEN = 0x00,
         EX_WINDOW_STATE_ACTIVE = 0x01,
         EX_WINDOW_STATE_CLOSED = 0x02,
-    };
+    };    
     
     class window {
     public:
-        void create(std::string title, uint32_t width, uint32_t height);
+        void create(std::string title, uint32_t width, uint32_t height, bool fullscreen);
         void destroy();
         void update();
         
@@ -28,6 +41,7 @@ namespace ex {
         uint32_t width();
         uint32_t height();
         int8_t get_key(int32_t key_code);
+        void change_display_mode();
 
         bool create_vulkan_surface(VkInstance instance,
                                    VkAllocationCallbacks *allocator,
@@ -44,10 +58,7 @@ namespace ex {
         ATOM m_atom { };
         HWND m_handle { };
 
-        window_state m_state { };
-
-        std::string m_title { };
-        uint32_t m_width { };
-        uint32_t m_height { };        
+        window_info m_info;
+        window_state m_state;
     };
 }
