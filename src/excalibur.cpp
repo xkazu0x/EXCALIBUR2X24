@@ -20,7 +20,7 @@ void key_presses() {
 
 int main() {
     EXFATAL("-+=+EXCALIBUR+=+-");
-    window.create("EXCALIBUR", 960, 540, true);
+    window.create("EXCALIBUR", 960, 540, false);
     window.show();
 
     if (!vulkan_backend->initialize(&window)) {
@@ -29,11 +29,10 @@ int main() {
     }
 
     vulkan_backend->create_swapchain(window.width(), window.height());
+    if (!vulkan_backend->create_depth_resources()) return -1;    
     vulkan_backend->create_render_pass();
     vulkan_backend->create_framebuffers();
     vulkan_backend->create_sync_structures();
-
-    //vulkan_backend->create_depth_resources();
     
     vulkan_backend->create_command_pool();
     vulkan_backend->allocate_command_buffers();
@@ -43,46 +42,68 @@ int main() {
 
     vulkan_backend->create_texture_image("res/textures/paris.jpg");
 
-    /*
     std::vector<ex::vertex> vertices = {
         // FRONT FACE
-        ex::vertex({-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 1.0f}),
-        ex::vertex({ 0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}),
-        ex::vertex({-0.5f,  0.5f, -0.5f}, {0.0f, 1.0f, 1.0f}),
-        ex::vertex({ 0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}),
+        ex::vertex({-0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}),
+        ex::vertex({ 0.5f,  0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}),
+        ex::vertex({-0.5f,  0.5f, 0.5f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f}),
+        ex::vertex({ 0.5f, -0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}),
 
         // BACK FACE
-        ex::vertex({-0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 1.0f}),
-        ex::vertex({ 0.5f,  0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}),
-        ex::vertex({-0.5f,  0.5f, 0.5f}, {0.0f, 1.0f, 1.0f}),
-        ex::vertex({ 0.5f, -0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}),
+        ex::vertex({ 0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}),
+        ex::vertex({-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}),
+        ex::vertex({ 0.5f,  0.5f, -0.5f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f}),
+        ex::vertex({-0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}),
+
+        // LEFT FACE
+        ex::vertex({-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}),
+        ex::vertex({-0.5f,  0.5f,  0.5f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}),
+        ex::vertex({-0.5f,  0.5f, -0.5f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f}),
+        ex::vertex({-0.5f, -0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}),
+
+        // RIGHT FACE
+        ex::vertex({0.5f, -0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}),
+        ex::vertex({0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}),
+        ex::vertex({0.5f,  0.5f,  0.5f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f}),
+        ex::vertex({0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}),
+
+        // TOP FACE
+        ex::vertex({-0.5f,  0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}),
+        ex::vertex({ 0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}),
+        ex::vertex({-0.5f,  0.5f, -0.5f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f}),
+        ex::vertex({ 0.5f,  0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}),
+        
+        // BOTTOM FACE
+        ex::vertex({ 0.5f, -0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}),
+        ex::vertex({-0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}),
+        ex::vertex({ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f}),
+        ex::vertex({-0.5f, -0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}),
     };
 
     std::vector<uint32_t> indices = {
+        // front face
         0, 1, 2,
         0, 3, 1,
 
+        // back face
         4, 5, 6,
         4, 7, 5,
 
-        4, 3, 0,
-        4, 7, 3,
+        // left face
+        8, 9, 10,
+        8, 11, 9,
+        
+        // right face
+        12, 13, 14,
+        12, 15, 13,
 
-        6, 1, 2,
-        6, 5, 1,
-    };
-    */
+        // top face
+        16, 17, 18,
+        16, 19, 17,
 
-    std::vector<ex::vertex> vertices = {
-        ex::vertex({-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}),
-        ex::vertex({ 0.5f,  0.5f, 0.0f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}),
-        ex::vertex({-0.5f,  0.5f, 0.0f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f}),
-        ex::vertex({ 0.5f, -0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}),
-    };
-
-    std::vector<uint32_t> indices = {
-        0, 1, 2,
-        0, 3, 1,
+        // bottom face
+        20, 21, 22,
+        20, 23, 21,
     };
     
     vulkan_backend->create_vertex_buffer(vertices);

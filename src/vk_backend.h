@@ -67,9 +67,13 @@ namespace ex::vulkan {
         bool select_physical_device();
         bool create_logical_device();
 
+        VkCommandBuffer begin_single_time_commands();
+        void end_single_time_commands(VkCommandBuffer command_buffer);
+        
         VkImageView create_image_view(VkImage image,
                                       VkImageViewType type,
-                                      VkFormat format);
+                                      VkFormat format,
+                                      VkImageAspectFlags aspect_flags);
         
         std::vector<char> read_file(const char *filepath);
         VkShaderModule create_shader_module(const std::vector<char> &shader_module);
@@ -78,9 +82,6 @@ namespace ex::vulkan {
                            VkMemoryPropertyFlags properties,
                            VkBuffer &buffer,
                            VkDeviceMemory &buffer_memory);
-
-        VkCommandBuffer begin_single_time_commands();
-        void end_single_time_commands(VkCommandBuffer command_buffer);
         
     private:
         VkAllocationCallbacks *m_allocator;
@@ -112,9 +113,10 @@ namespace ex::vulkan {
         //std::vector<VkImageView> m_depth_image_views;
         //std::vector<VkDeviceMemory> m_depth_image_memories;
 
+        VkFormat m_depth_format;
         VkImage m_depth_image;
-        VkImageView m_depth_image_view;
         VkDeviceMemory m_depth_image_memory;
+        VkImageView m_depth_image_view;
         
         VkSurfaceCapabilitiesKHR m_swapchain_capabilities;
         std::vector<VkSurfaceFormatKHR> m_swapchain_formats;

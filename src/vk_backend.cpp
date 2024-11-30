@@ -131,10 +131,30 @@ ex::vulkan::backend::shutdown() {
                        m_texture_image,
                        m_allocator);
     }
-
+    
     if (m_texture_image_memory) {
         vkFreeMemory(m_logical_device,
                      m_texture_image_memory,
+                     m_allocator);
+    }
+    // --------------------
+
+    // depth image --------
+    if (m_depth_image_view) {
+        vkDestroyImageView(m_logical_device,
+                           m_depth_image_view,
+                           m_allocator);
+    }
+
+    if (m_depth_image) {
+        vkDestroyImage(m_logical_device,
+                       m_depth_image,
+                       m_allocator);
+    }
+    
+    if (m_depth_image_memory) {
+        vkFreeMemory(m_logical_device,
+                     m_depth_image_memory,
                      m_allocator);
     }
     // --------------------
@@ -248,9 +268,9 @@ ex::vulkan::backend::shutdown() {
 void
 ex::vulkan::backend::update(float delta) {
     glm::mat4 model = glm::rotate(glm::mat4(1.0f),
-                                  delta * glm::radians(30.0f),
-                                  glm::vec3(0.0f, 1.0f, 0.0f));
-    glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, -1.0f),
+                                  delta * glm::radians(45.0f),
+                                  glm::vec3(1.0f, 1.0f, 1.0f));
+    glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, -2.0f),
                                  glm::vec3(0.0f, 0.0f, 1.0f),
                                  glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 projection = glm::perspective(glm::radians(80.0f),
@@ -302,8 +322,9 @@ ex::vulkan::backend::render() {
     command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     VK_CHECK(vkBeginCommandBuffer(m_command_buffers[next_image_index], &command_buffer_begin_info));
 
-    std::array<VkClearValue, 1> clear_values{};
+    std::array<VkClearValue, 2> clear_values{};
     clear_values[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+    clear_values[1].depthStencil = { 1.0f, 0 };
     
     VkRenderPassBeginInfo render_pass_begin_info = {};
     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -809,7 +830,8 @@ ex::vulkan::backend::create_swapchain(uint32_t width, uint32_t height) {
         */
         m_swapchain_image_views[i] = create_image_view(m_swapchain_images[i],
                                                        VK_IMAGE_VIEW_TYPE_2D,
-                                                       m_swapchain_format.format);
+                                                       m_swapchain_format.format,
+                                                       VK_IMAGE_ASPECT_COLOR_BIT);
     }
 }
 
@@ -826,10 +848,30 @@ ex::vulkan::backend::create_render_pass() {
     color_attachment_description.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     color_attachment_description.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
+    VkAttachmentDescription depth_attachment_description = {};
+    depth_attachment_description.flags = 0;
+    depth_attachment_description.format = m_depth_format;
+    depth_attachment_description.samples = VK_SAMPLE_COUNT_1_BIT;
+    depth_attachment_description.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment_description.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment_description.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depth_attachment_description.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment_description.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    depth_attachment_description.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    std::array<VkAttachmentDescription, 2> attachments = {
+        color_attachment_description,
+        depth_attachment_description,
+    };
+
     VkAttachmentReference color_attachment_reference = {};
     color_attachment_reference.attachment = 0;
     color_attachment_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentReference depth_attachment_reference = {};
+    depth_attachment_reference.attachment = 1;
+    depth_attachment_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    
     VkSubpassDescription subpass_description = {};
     subpass_description.flags = 0;
     subpass_description.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -838,25 +880,25 @@ ex::vulkan::backend::create_render_pass() {
     subpass_description.colorAttachmentCount = 1;
     subpass_description.pColorAttachments = &color_attachment_reference;
     subpass_description.pResolveAttachments = nullptr;
-    subpass_description.pDepthStencilAttachment = nullptr;
+    subpass_description.pDepthStencilAttachment = &depth_attachment_reference;
     subpass_description.preserveAttachmentCount = 0;
     subpass_description.pPreserveAttachments  = nullptr;
 
     VkSubpassDependency subpass_dependency = {};
     subpass_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     subpass_dependency.dstSubpass = 0;
-    subpass_dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    subpass_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    subpass_dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    subpass_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     subpass_dependency.srcAccessMask = 0;
-    subpass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    subpass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     subpass_dependency.dependencyFlags = 0;
-
+    
     VkRenderPassCreateInfo render_pass_create_info = {};
     render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     render_pass_create_info.pNext = nullptr;
     render_pass_create_info.flags = 0;
-    render_pass_create_info.attachmentCount = 1;
-    render_pass_create_info.pAttachments = &color_attachment_description;
+    render_pass_create_info.attachmentCount = static_cast<uint32_t>(attachments.size());
+    render_pass_create_info.pAttachments = attachments.data();
     render_pass_create_info.subpassCount = 1;
     render_pass_create_info.pSubpasses = &subpass_description;
     render_pass_create_info.dependencyCount = 1;
@@ -871,13 +913,18 @@ void
 ex::vulkan::backend::create_framebuffers() {
     m_swapchain_framebuffers.resize(m_swapchain_images.size());
     for (uint32_t i = 0; i < m_swapchain_images.size(); i++) {
+        std::array<VkImageView, 2> attachments = {
+            m_swapchain_image_views[i],
+            m_depth_image_view,
+        };
+        
         VkFramebufferCreateInfo framebuffer_create_info = {};
         framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebuffer_create_info.pNext = nullptr;
         framebuffer_create_info.flags = 0;
         framebuffer_create_info.renderPass = m_render_pass;
-        framebuffer_create_info.attachmentCount = 1;
-        framebuffer_create_info.pAttachments = &m_swapchain_image_views[i];
+        framebuffer_create_info.attachmentCount = static_cast<uint32_t>(attachments.size());
+        framebuffer_create_info.pAttachments = attachments.data();
         framebuffer_create_info.width = m_swapchain_extent.width;
         framebuffer_create_info.height = m_swapchain_extent.height;
         framebuffer_create_info.layers = 1;
@@ -926,47 +973,6 @@ ex::vulkan::backend::create_sync_structures() {
                                &semaphore_create_info,
                                m_allocator,
                                &m_semaphore_render));
-}
-
-bool
-ex::vulkan::backend::create_depth_resources() {
-    /*
-    std::vector<VkFormat> formats = {
-        VK_FORMAT_D32_SFLOAT,
-        VK_FORMAT_D32_SFLOAT_S8_UINT,
-        VK_FORMAT_D24_UNORM_S8_UINT,
-    };
-
-    VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
-    VkFormatFeatureFlags feature = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
-    VkFormat depth_format;
-    for (uint32_t i = 0; i < formats.size(); ++i) {
-        VkFormatProperties properties;
-        vkGetPhysicalDeviceFormatProperties(m_physical_device,
-                                            formats[i],
-                                            &properties);
-
-        bool found = false;
-        if (tiling == VK_IMAGE_TILING_LINEAR &&
-            (properties.linearTilingFeatures & feature) == feature) {
-            depth_format = formats[i];
-            found = true;
-            break;
-        } else if (tiling == VK_IMAGE_TILING_OPTIMAL &&
-                   (properties.optimalTilingFeatures & feature) == feature) {
-            depth_format = formats[i];
-            found = true;
-            break;
-        }
-        if (!found) {
-            EXFATAL("Failed to find depth format");
-            return false;
-        }
-    }    
-    */
-    
-    return true;
 }
 
 void
@@ -1101,7 +1107,6 @@ ex::vulkan::backend::create_pipeline() {
     multisample_state_create_info.alphaToOneEnable = VK_FALSE;
 
     // depth stencil
-    /*
     VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info = {};
     depth_stencil_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depth_stencil_state_create_info.depthTestEnable = VK_TRUE;
@@ -1113,7 +1118,7 @@ ex::vulkan::backend::create_pipeline() {
     depth_stencil_state_create_info.back = {};
     depth_stencil_state_create_info.minDepthBounds = 0.0f;
     depth_stencil_state_create_info.maxDepthBounds = 1.0f;
-    */
+
     // color blending
     VkPipelineColorBlendAttachmentState color_blend_attachment_state = {};
     color_blend_attachment_state.blendEnable = VK_FALSE;
@@ -1176,8 +1181,7 @@ ex::vulkan::backend::create_pipeline() {
     graphics_pipeline_create_info.pViewportState = &viewport_state_create_info;
     graphics_pipeline_create_info.pRasterizationState = &rasterization_state_create_info;
     graphics_pipeline_create_info.pMultisampleState = &multisample_state_create_info;
-    //graphics_pipeline_create_info.pDepthStencilState = &depth_stencil_state_create_info;
-    graphics_pipeline_create_info.pDepthStencilState = nullptr;
+    graphics_pipeline_create_info.pDepthStencilState = &depth_stencil_state_create_info;
     graphics_pipeline_create_info.pColorBlendState = &color_blend_state_create_info;
     graphics_pipeline_create_info.pDynamicState = &dynamic_state_create_info;
     
@@ -1203,6 +1207,109 @@ ex::vulkan::backend::create_pipeline() {
     vkDestroyShaderModule(m_logical_device,
                           fragment_shader,
                           m_allocator);
+}
+
+bool
+ex::vulkan::backend::create_depth_resources() {
+    std::vector<VkFormat> formats = {
+        VK_FORMAT_D32_SFLOAT,
+        VK_FORMAT_D32_SFLOAT_S8_UINT,
+        VK_FORMAT_D24_UNORM_S8_UINT,
+    };
+
+    VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
+    VkFormatFeatureFlags feature = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+    // find supported format
+    bool found = false;
+    for (uint32_t i = 0; i < formats.size(); ++i) {
+        VkFormatProperties format_properties;
+        vkGetPhysicalDeviceFormatProperties(m_physical_device,
+                                            formats[i],
+                                            &format_properties);
+        
+        if (tiling == VK_IMAGE_TILING_LINEAR &&
+            (format_properties.linearTilingFeatures & feature) == feature) {
+            m_depth_format = formats[i];
+            found = true;
+            break;
+        } else if (tiling == VK_IMAGE_TILING_OPTIMAL &&
+                   (format_properties.optimalTilingFeatures & feature) == feature) {
+            m_depth_format = formats[i];
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        EXFATAL("Failed to find supported depth formats");
+        return false;
+    }
+
+    // create image
+    VkImageCreateInfo image_create_info = {};
+    image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image_create_info.pNext = nullptr;
+    image_create_info.flags = 0;
+    image_create_info.imageType = VK_IMAGE_TYPE_2D;
+    image_create_info.format = m_depth_format;
+    image_create_info.extent.width = static_cast<uint32_t>(m_swapchain_extent.width);
+    image_create_info.extent.height = static_cast<uint32_t>(m_swapchain_extent.height);
+    image_create_info.extent.depth = 1;
+    image_create_info.mipLevels = 1;
+    image_create_info.arrayLayers = 1;
+    image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    image_create_info.tiling = tiling;
+    image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    image_create_info.queueFamilyIndexCount = 0;
+    image_create_info.pQueueFamilyIndices = nullptr;
+    image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VK_CHECK(vkCreateImage(m_logical_device,
+                           &image_create_info,
+                           m_allocator,
+                           &m_depth_image));
+
+    // allocate image
+    VkMemoryRequirements memory_requirements;
+    vkGetImageMemoryRequirements(m_logical_device,
+                                 m_depth_image,
+                                 &memory_requirements);
+
+    VkPhysicalDeviceMemoryProperties memory_properties;
+    vkGetPhysicalDeviceMemoryProperties(m_physical_device,
+                                        &memory_properties);
+    
+    uint32_t memory_type_index = 0;
+    for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i) {
+        if ((memory_requirements.memoryTypeBits & (1 << 1)) &&
+            (memory_properties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
+            memory_type_index = i;
+            break;
+        }
+    }
+    
+    VkMemoryAllocateInfo memory_allocate_info = {};
+    memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    memory_allocate_info.pNext = nullptr;
+    memory_allocate_info.allocationSize = memory_requirements.size;
+    memory_allocate_info.memoryTypeIndex = memory_type_index;
+    VK_CHECK(vkAllocateMemory(m_logical_device,
+                              &memory_allocate_info,
+                              m_allocator,
+                              &m_depth_image_memory));
+
+    vkBindImageMemory(m_logical_device,
+                      m_depth_image,
+                      m_depth_image_memory,
+                      0);
+
+    // create image view
+    m_depth_image_view = create_image_view(m_depth_image,
+                                           VK_IMAGE_VIEW_TYPE_2D,
+                                           m_depth_format,
+                                           VK_IMAGE_ASPECT_DEPTH_BIT);
+    
+    return true;
 }
 
 void
@@ -1392,7 +1499,8 @@ ex::vulkan::backend::create_texture_image(const char *file) {
     // Create image view
     m_texture_image_view = create_image_view(m_texture_image,
                                              VK_IMAGE_VIEW_TYPE_2D,
-                                             VK_FORMAT_R8G8B8A8_UNORM);
+                                             VK_FORMAT_R8G8B8A8_UNORM,
+                                             VK_IMAGE_ASPECT_COLOR_BIT);
 
     // Create sampler
     VkSamplerCreateInfo sampler_create_info = {};
@@ -1640,29 +1748,98 @@ ex::vulkan::backend::recreate_swapchain(uint32_t width, uint32_t height) {
     EXDEBUG("Width: %d -+- Height: %d", width, height);
     
     vkDeviceWaitIdle(m_logical_device);
-    
+
+    // framebuffers
     for (size_t i = 0; i < m_swapchain_framebuffers.size(); ++i) {
         vkDestroyFramebuffer(m_logical_device,
                              m_swapchain_framebuffers[i],
                              m_allocator);
     }
+
+    // depth
+        if (m_depth_image_view) {
+        vkDestroyImageView(m_logical_device,
+                           m_depth_image_view,
+                           m_allocator);
+    }
+        
+    if (m_depth_image) {
+        vkDestroyImage(m_logical_device,
+                       m_depth_image,
+                       m_allocator);
+    }
+
+    if (m_depth_image_memory) {
+        vkFreeMemory(m_logical_device,
+                     m_depth_image_memory,
+                     m_allocator);
+    }
     
+    // swapchain    
     for (size_t i = 0; i < m_swapchain_image_views.size(); ++i) {
         vkDestroyImageView(m_logical_device,
                            m_swapchain_image_views[i],
                            m_allocator);
     }
-    
+
     vkDestroySwapchainKHR(m_logical_device, m_swapchain, m_allocator);
 
     create_swapchain(width, height);
+    create_depth_resources();
     create_framebuffers();
+}
+
+
+VkCommandBuffer
+ex::vulkan::backend::begin_single_time_commands() {
+    VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
+    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    command_buffer_allocate_info.pNext = nullptr;
+    command_buffer_allocate_info.commandPool = m_command_pool;
+    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    command_buffer_allocate_info.commandBufferCount = 1;
+
+    VkCommandBuffer command_buffer;
+    VK_CHECK(vkAllocateCommandBuffers(m_logical_device,
+                                      &command_buffer_allocate_info,
+                                      &command_buffer));
+
+    VkCommandBufferBeginInfo command_buffer_begin_info = {};
+    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    command_buffer_begin_info.pNext = nullptr;
+    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    command_buffer_begin_info.pInheritanceInfo = nullptr;
+    VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info));
+
+    return command_buffer;
+}
+
+void
+ex::vulkan::backend::end_single_time_commands(VkCommandBuffer command_buffer) {
+    vkEndCommandBuffer(command_buffer);
+
+    VkSubmitInfo submit_info = {};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.pNext = nullptr;
+    submit_info.waitSemaphoreCount = 0;
+    submit_info.pWaitSemaphores = nullptr;
+    submit_info.pWaitDstStageMask = nullptr;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &command_buffer;
+    submit_info.signalSemaphoreCount = 0;
+    submit_info.pSignalSemaphores = nullptr;
+    
+    vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_graphics_queue);
+
+    vkFreeCommandBuffers(m_logical_device, m_command_pool, 1, &command_buffer);
 }
 
 VkImageView
 ex::vulkan::backend::create_image_view(VkImage image,
                                        VkImageViewType type,
-                                       VkFormat format) {
+                                       VkFormat format,
+                                       VkImageAspectFlags aspect_flags) {
     VkImageViewCreateInfo image_view_create_info = {};
     image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     image_view_create_info.pNext = nullptr;
@@ -1674,7 +1851,7 @@ ex::vulkan::backend::create_image_view(VkImage image,
     image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
     image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
     image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-    image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    image_view_create_info.subresourceRange.aspectMask = aspect_flags;
     image_view_create_info.subresourceRange.baseMipLevel = 0;
     image_view_create_info.subresourceRange.levelCount = 1;
     image_view_create_info.subresourceRange.baseArrayLayer = 0;
@@ -1769,49 +1946,4 @@ ex::vulkan::backend::create_buffer(VkDeviceSize size,
                        buffer,
                        buffer_memory,
                        0);
-}
-
-VkCommandBuffer
-ex::vulkan::backend::begin_single_time_commands() {
-    VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
-    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    command_buffer_allocate_info.pNext = nullptr;
-    command_buffer_allocate_info.commandPool = m_command_pool;
-    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    command_buffer_allocate_info.commandBufferCount = 1;
-
-    VkCommandBuffer command_buffer;
-    VK_CHECK(vkAllocateCommandBuffers(m_logical_device,
-                                      &command_buffer_allocate_info,
-                                      &command_buffer));
-
-    VkCommandBufferBeginInfo command_buffer_begin_info = {};
-    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    command_buffer_begin_info.pNext = nullptr;
-    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    command_buffer_begin_info.pInheritanceInfo = nullptr;
-    VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info));
-
-    return command_buffer;
-}
-
-void
-ex::vulkan::backend::end_single_time_commands(VkCommandBuffer command_buffer) {
-    vkEndCommandBuffer(command_buffer);
-
-    VkSubmitInfo submit_info = {};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.pNext = nullptr;
-    submit_info.waitSemaphoreCount = 0;
-    submit_info.pWaitSemaphores = nullptr;
-    submit_info.pWaitDstStageMask = nullptr;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &command_buffer;
-    submit_info.signalSemaphoreCount = 0;
-    submit_info.pSignalSemaphores = nullptr;
-    
-    vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
-    vkQueueWaitIdle(m_graphics_queue);
-
-    vkFreeCommandBuffers(m_logical_device, m_command_pool, 1, &command_buffer);
 }
