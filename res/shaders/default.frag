@@ -8,6 +8,6 @@ layout (location = 0) out vec4 out_frag_color;
 layout (binding = 1) uniform sampler2D sampler_texture;
 
 void main() {
-    //out_frag_color = vec4(in_color, 1.0);
-    out_frag_color = texture(sampler_texture, in_uv);
+    out_frag_color = vec4(in_color, 1.0);
+    //out_frag_color = texture(sampler_texture, in_uv);
 }

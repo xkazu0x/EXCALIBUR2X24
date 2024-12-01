@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ex_window.h"
+#include "ex_vertex.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
@@ -11,20 +12,6 @@
 
 #include <vector>
 #include <memory>
-
-namespace ex {
-    class vertex {
-    public:
-        vertex(glm::vec3 pos, glm::vec3 color, glm::vec2 uv)
-            : pos(pos), color(color), uv(uv) {
-        }
-        
-    public:
-        glm::vec3 pos;
-        glm::vec3 color;
-        glm::vec2 uv;
-    };
-}
 
 namespace ex::vulkan {
     class backend {
@@ -59,6 +46,10 @@ namespace ex::vulkan {
 
         VkDevice logical_device() {
             return m_logical_device;
+        }
+
+        VkAllocationCallbacks *allocator() {
+            return m_allocator;
         }
 
     private:

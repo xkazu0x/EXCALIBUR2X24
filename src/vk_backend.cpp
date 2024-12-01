@@ -1,10 +1,9 @@
 #include "vk_backend.h"
-#include "ex_logger.h"
+#include "vk_common.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
-#include <assert.h>
 #include <vector>
 #include <cstdint>
 #include <cstring>
@@ -13,8 +12,6 @@
 #include <string>
 
 #include <array>
-
-#define VK_CHECK(x) if ((x) != VK_SUCCESS) { EXFATAL("Vulkan Error: %d", x); throw std::runtime_error("\"VK_CHECK\" FAILED"); }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL
 debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
@@ -267,12 +264,15 @@ ex::vulkan::backend::shutdown() {
 
 void
 ex::vulkan::backend::update(float delta) {
-    glm::mat4 model = glm::rotate(glm::mat4(1.0f),
-                                  delta * glm::radians(45.0f),
-                                  glm::vec3(1.0f, 1.0f, 1.0f));
-    glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, -2.0f),
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::rotate(model, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
+    
+    float scale = 0.25f;
+    model = glm::scale(model, glm::vec3(scale, scale, scale));
+    
+    glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 3.0f, -2.0f),
                                  glm::vec3(0.0f, 0.0f, 1.0f),
-                                 glm::vec3(0.0f, 1.0f, 0.0f));
+                                 glm::vec3(0.0f, -1.0f, 0.0f));
     glm::mat4 projection = glm::perspective(glm::radians(80.0f),
                                             m_swapchain_extent.width / (float) m_swapchain_extent.height,
                                             0.01f,
@@ -361,13 +361,13 @@ ex::vulkan::backend::render() {
     vkCmdBindIndexBuffer(m_command_buffers[next_image_index], m_index_buffer, 0, VK_INDEX_TYPE_UINT32);
 
     vkCmdBindDescriptorSets(m_command_buffers[next_image_index],
-                             VK_PIPELINE_BIND_POINT_GRAPHICS,
-                             m_pipeline_layout,
-                             0,
-                             1,
-                             &m_descriptor_set,
-                             0,
-                             nullptr);
+                            VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            m_pipeline_layout,
+                            0,
+                            1,
+                            &m_descriptor_set,
+                            0,
+                            nullptr);
     
     //vkCmdDraw(m_command_buffers[next_image_index], m_vertex_count, 1, 0, 0);
     vkCmdDrawIndexed(m_command_buffers[next_image_index], m_index_count, 1, 0, 0, 0);
@@ -1005,8 +1005,8 @@ ex::vulkan::backend::create_descriptor_set_layout() {
 void
 ex::vulkan::backend::create_pipeline() {
     // shaders
-    std::vector<char> vertex_code = read_file("res/shaders/triangle.vert.spv");
-    std::vector<char> fragment_code = read_file("res/shaders/triangle.frag.spv");
+    std::vector<char> vertex_code = read_file("res/shaders/default.vert.spv");
+    std::vector<char> fragment_code = read_file("res/shaders/default.frag.spv");
     EXDEBUG("Vertex shader size: %d", vertex_code.size());
     EXDEBUG("Fragment shader size: %d", fragment_code.size());
 
@@ -1030,26 +1030,8 @@ ex::vulkan::backend::create_pipeline() {
     shader_stages[1].pName = "main";
 
     // vertex input
-    VkVertexInputBindingDescription vertex_input_binding_description = {};
-    vertex_input_binding_description.binding = 0;
-    vertex_input_binding_description.stride = sizeof(ex::vertex);
-    vertex_input_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-    std::array<VkVertexInputAttributeDescription, 3> vertex_input_attribute_descriptions{};
-    vertex_input_attribute_descriptions[0].location = 0;
-    vertex_input_attribute_descriptions[0].binding = 0;
-    vertex_input_attribute_descriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertex_input_attribute_descriptions[0].offset = offsetof(ex::vertex, pos);
-    
-    vertex_input_attribute_descriptions[1].location = 1;
-    vertex_input_attribute_descriptions[1].binding = 0;
-    vertex_input_attribute_descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertex_input_attribute_descriptions[1].offset = offsetof(ex::vertex, color);
-
-    vertex_input_attribute_descriptions[2].location = 2;
-    vertex_input_attribute_descriptions[2].binding = 0;
-    vertex_input_attribute_descriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-    vertex_input_attribute_descriptions[2].offset = offsetof(ex::vertex, uv);
+    VkVertexInputBindingDescription vertex_input_binding_description = ex::vertex::get_binding_description();
+    std::vector<VkVertexInputAttributeDescription> vertex_input_attribute_descriptions = ex::vertex::get_attribute_descriptions();
     
     VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {};
     vertex_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;

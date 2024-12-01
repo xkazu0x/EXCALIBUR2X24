@@ -1,9 +1,15 @@
 #include "ex_logger.h"
 #include "ex_window.h"
 #include "ex_input.h"
+#include "ex_mesh.h"
+
 #include "vk_backend.h"
+
+#include <tinyobjloader/tiny_obj_loader.h>
+
 #include <memory>
 #include <chrono>
+#include <thread>
 
 ex::window window;
 ex::input input;
@@ -22,7 +28,7 @@ int main() {
     EXFATAL("-+=+EXCALIBUR+=+-");
     window.create("EXCALIBUR", 960, 540, false);
     window.show();
-
+    
     if (!vulkan_backend->initialize(&window)) {
         EXFATAL("Failed to initialize vulkan backend");
         return -1;
@@ -36,12 +42,13 @@ int main() {
     
     vulkan_backend->create_command_pool();
     vulkan_backend->allocate_command_buffers();
-
+    
     vulkan_backend->create_descriptor_set_layout();
     vulkan_backend->create_pipeline();
 
     vulkan_backend->create_texture_image("res/textures/paris.jpg");
 
+    /*
     std::vector<ex::vertex> vertices = {
         // FRONT FACE
         ex::vertex({-0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}),
@@ -105,9 +112,15 @@ int main() {
         20, 21, 22,
         20, 23, 21,
     };
+    */
+
+    ex::mesh model;
+    model.create("res/meshes/dragon.obj");
+    std::vector<ex::vertex> model_vertices = model.vertices();
+    std::vector<uint32_t> model_indices = model.indices();
     
-    vulkan_backend->create_vertex_buffer(vertices);
-    vulkan_backend->create_index_buffer(indices);
+    vulkan_backend->create_vertex_buffer(model_vertices);
+    vulkan_backend->create_index_buffer(model_indices);
     vulkan_backend->create_uniform_buffer();
 
     vulkan_backend->create_descriptor_pool();
@@ -118,7 +131,7 @@ int main() {
         window.update();
         input.update(&window);
         key_presses();
-        
+
         auto now = std::chrono::high_resolution_clock::now();
         float delta = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count() / 1000.0f;
         vulkan_backend->update(delta);
@@ -126,6 +139,8 @@ int main() {
         if (!vulkan_backend->render()) {
             vulkan_backend->recreate_swapchain(window.width(), window.height());
         }
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     
     vulkan_backend->shutdown();
