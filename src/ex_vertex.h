@@ -7,8 +7,8 @@
 namespace ex {
     class vertex {
     public:
-        vertex(glm::vec3 pos, glm::vec3 color, glm::vec2 uv)
-            : pos(pos), color(color), uv(uv) {
+        vertex(glm::vec3 pos, glm::vec3 color, glm::vec2 uv, glm::vec3 normal)
+            : pos(pos), color(color), uv(uv), normal(normal) {
         }
 
         static VkVertexInputBindingDescription get_binding_description() {
@@ -21,7 +21,7 @@ namespace ex {
         }
 
         static std::vector<VkVertexInputAttributeDescription> get_attribute_descriptions() {
-            std::vector<VkVertexInputAttributeDescription> vertex_input_attribute_descriptions(3);
+            std::vector<VkVertexInputAttributeDescription> vertex_input_attribute_descriptions(4);
             vertex_input_attribute_descriptions[0].location = 0;
             vertex_input_attribute_descriptions[0].binding = 0;
             vertex_input_attribute_descriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -37,6 +37,11 @@ namespace ex {
             vertex_input_attribute_descriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
             vertex_input_attribute_descriptions[2].offset = offsetof(ex::vertex, uv);
 
+            vertex_input_attribute_descriptions[3].location = 3;
+            vertex_input_attribute_descriptions[3].binding = 0;
+            vertex_input_attribute_descriptions[3].format = VK_FORMAT_R32G32B32_SFLOAT;
+            vertex_input_attribute_descriptions[3].offset = offsetof(ex::vertex, normal);
+            
             return vertex_input_attribute_descriptions;
         }
         
@@ -44,5 +49,6 @@ namespace ex {
         glm::vec3 pos;
         glm::vec3 color;
         glm::vec2 uv;
+        glm::vec3 normal;
     };
 }

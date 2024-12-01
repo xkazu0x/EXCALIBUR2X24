@@ -31,7 +31,16 @@ ex::mesh::create(const char *path) {
                 attributes.vertices[3 * index.vertex_index + 2],
             };
 
-            m_vertices.push_back(ex::vertex(pos, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}));
+            glm::vec3 normal = {
+                attributes.normals[3 * index.normal_index + 0],
+                attributes.normals[3 * index.normal_index + 1],
+                attributes.normals[3 * index.normal_index + 2],
+            };
+            
+            m_vertices.push_back(ex::vertex(pos,
+                                            {0.0f, 1.0f, 0.0f},
+                                            {0.0f, 0.0f},
+                                            normal));
             m_indices.push_back(m_indices.size());
         }
     }    

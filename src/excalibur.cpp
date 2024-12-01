@@ -48,72 +48,6 @@ int main() {
 
     vulkan_backend->create_texture_image("res/textures/paris.jpg");
 
-    /*
-    std::vector<ex::vertex> vertices = {
-        // FRONT FACE
-        ex::vertex({-0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}),
-        ex::vertex({ 0.5f,  0.5f, 0.5f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}),
-        ex::vertex({-0.5f,  0.5f, 0.5f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f}),
-        ex::vertex({ 0.5f, -0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}),
-
-        // BACK FACE
-        ex::vertex({ 0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}),
-        ex::vertex({-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}),
-        ex::vertex({ 0.5f,  0.5f, -0.5f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f}),
-        ex::vertex({-0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}),
-
-        // LEFT FACE
-        ex::vertex({-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}),
-        ex::vertex({-0.5f,  0.5f,  0.5f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}),
-        ex::vertex({-0.5f,  0.5f, -0.5f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f}),
-        ex::vertex({-0.5f, -0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}),
-
-        // RIGHT FACE
-        ex::vertex({0.5f, -0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}),
-        ex::vertex({0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}),
-        ex::vertex({0.5f,  0.5f,  0.5f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f}),
-        ex::vertex({0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}),
-
-        // TOP FACE
-        ex::vertex({-0.5f,  0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}),
-        ex::vertex({ 0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}),
-        ex::vertex({-0.5f,  0.5f, -0.5f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f}),
-        ex::vertex({ 0.5f,  0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}),
-        
-        // BOTTOM FACE
-        ex::vertex({ 0.5f, -0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}, {0.0f, 0.0f}),
-        ex::vertex({-0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f}),
-        ex::vertex({ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f}),
-        ex::vertex({-0.5f, -0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}),
-    };
-
-    std::vector<uint32_t> indices = {
-        // front face
-        0, 1, 2,
-        0, 3, 1,
-
-        // back face
-        4, 5, 6,
-        4, 7, 5,
-
-        // left face
-        8, 9, 10,
-        8, 11, 9,
-        
-        // right face
-        12, 13, 14,
-        12, 15, 13,
-
-        // top face
-        16, 17, 18,
-        16, 19, 17,
-
-        // bottom face
-        20, 21, 22,
-        20, 23, 21,
-    };
-    */
-
     ex::mesh model;
     model.create("res/meshes/dragon.obj");
     std::vector<ex::vertex> model_vertices = model.vertices();
@@ -126,6 +60,8 @@ int main() {
     vulkan_backend->create_descriptor_pool();
     vulkan_backend->create_descriptor_set();
 
+    ex::vulkan::ubo ubo;
+    
     auto last_time = std::chrono::high_resolution_clock::now();
     while (window.is_active()) {
         window.update();
@@ -134,7 +70,30 @@ int main() {
 
         auto now = std::chrono::high_resolution_clock::now();
         float delta = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count() / 1000.0f;
-        vulkan_backend->update(delta);
+
+        // update
+        ubo.model = glm::mat4(1.0f);
+        //ubo.model = glm::rotate(ubo.model, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
+
+        float scale = 0.25f;
+        ubo.model = glm::scale(ubo.model, glm::vec3(scale, scale, scale));
+
+        ubo.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f),
+                               glm::vec3(0.0f, 0.0f, 1.0f),
+                               glm::vec3(0.0f, -1.0f, 0.0f));
+        ubo.view = glm::rotate(ubo.view, glm::radians(-20.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+        ubo.view = glm::translate(ubo.view, glm::vec3(0.0f, -2.2f, 3.0f));
+        ubo.view = glm::rotate(ubo.view, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
+        
+        float aspect = vulkan_backend->swapchain_extent().width / (float) vulkan_backend->swapchain_extent().height;
+        ubo.projection = glm::perspective(glm::radians(80.0f),
+                                          aspect,
+                                          0.01f,
+                                          10.0f);
+
+        ubo.light_pos = glm::vec3(2.0f, -2.0f, 2.0f);
+        
+        vulkan_backend->upload_uniform_buffer(&ubo);
         
         if (!vulkan_backend->render()) {
             vulkan_backend->recreate_swapchain(window.width(), window.height());

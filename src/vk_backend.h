@@ -14,11 +14,19 @@
 #include <memory>
 
 namespace ex::vulkan {
+    struct ubo {
+        glm::mat4 model;
+        glm::mat4 view;
+        glm::mat4 projection;
+        glm::vec3 light_pos;
+    };
+}
+
+namespace ex::vulkan {
     class backend {
     public:
         bool initialize(ex::window *window);
         void shutdown();
-        void update(float delta);
         bool render();
 
         void create_command_pool();
@@ -41,15 +49,20 @@ namespace ex::vulkan {
 
         void create_descriptor_pool();
         void create_descriptor_set();
-        
-        void recreate_swapchain(uint32_t width, uint32_t height);
 
+        void recreate_swapchain(uint32_t width, uint32_t height);
+        void upload_uniform_buffer(ex::vulkan::ubo *ubo);
+        
         VkDevice logical_device() {
             return m_logical_device;
         }
 
         VkAllocationCallbacks *allocator() {
             return m_allocator;
+        }
+
+        VkExtent2D swapchain_extent() {
+            return m_swapchain_extent;
         }
 
     private:
@@ -144,7 +157,5 @@ namespace ex::vulkan {
         VkDescriptorSetLayout m_descriptor_set_layout;
         VkDescriptorPool m_descriptor_pool;
         VkDescriptorSet m_descriptor_set;
-        
-        glm::mat4 m_mvp;
     };
 }

@@ -262,36 +262,6 @@ ex::vulkan::backend::shutdown() {
     }
 }
 
-void
-ex::vulkan::backend::update(float delta) {
-    glm::mat4 model = glm::mat4(1.0f);
-    model = glm::rotate(model, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
-    
-    float scale = 0.25f;
-    model = glm::scale(model, glm::vec3(scale, scale, scale));
-    
-    glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 3.0f, -2.0f),
-                                 glm::vec3(0.0f, 0.0f, 1.0f),
-                                 glm::vec3(0.0f, -1.0f, 0.0f));
-    glm::mat4 projection = glm::perspective(glm::radians(80.0f),
-                                            m_swapchain_extent.width / (float) m_swapchain_extent.height,
-                                            0.01f,
-                                            10.0f);
-
-    m_mvp = projection * view * model;
-
-    void *data;
-    vkMapMemory(m_logical_device,
-                m_uniform_buffer_memory,
-                0,
-                sizeof(m_mvp),
-                0,
-                &data);
-    memcpy(data, &m_mvp, sizeof(m_mvp));
-    vkUnmapMemory(m_logical_device,
-                  m_uniform_buffer_memory);
-}
-
 bool
 ex::vulkan::backend::render() {
     VK_CHECK(vkWaitForFences(m_logical_device,
@@ -1070,8 +1040,9 @@ ex::vulkan::backend::create_pipeline() {
     rasterization_state_create_info.depthClampEnable = VK_FALSE;
     rasterization_state_create_info.rasterizerDiscardEnable = VK_FALSE;
     rasterization_state_create_info.polygonMode = VK_POLYGON_MODE_FILL;
-    rasterization_state_create_info.cullMode = VK_CULL_MODE_NONE;
-    rasterization_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    //rasterization_state_create_info.cullMode = VK_CULL_MODE_NONE;
+    rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterization_state_create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
     rasterization_state_create_info.depthBiasEnable = VK_FALSE;
     rasterization_state_create_info.depthBiasConstantFactor = 0.0f;
     rasterization_state_create_info.depthBiasClamp = 0.0f;
@@ -1642,7 +1613,7 @@ ex::vulkan::backend::create_index_buffer(std::vector<uint32_t> &indices) {
 
 void
 ex::vulkan::backend::create_uniform_buffer() {
-    VkDeviceSize buffer_size = sizeof(m_mvp);
+    VkDeviceSize buffer_size = sizeof(ex::vulkan::ubo);
     create_buffer(buffer_size,
                   VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -1687,7 +1658,7 @@ ex::vulkan::backend::create_descriptor_set() {
     VkDescriptorBufferInfo descriptor_buffer_info = {};
     descriptor_buffer_info.buffer = m_uniform_buffer;
     descriptor_buffer_info.offset = 0;
-    descriptor_buffer_info.range = sizeof(m_mvp);
+    descriptor_buffer_info.range = sizeof(ex::vulkan::ubo);
 
     VkDescriptorImageInfo descriptor_image_info = {};
     descriptor_image_info.sampler = m_texture_image_sampler;
@@ -1928,4 +1899,18 @@ ex::vulkan::backend::create_buffer(VkDeviceSize size,
                        buffer,
                        buffer_memory,
                        0);
+}
+
+void
+ex::vulkan::backend::upload_uniform_buffer(ex::vulkan::ubo *ubo) {
+    void *data;
+    vkMapMemory(m_logical_device,
+                m_uniform_buffer_memory,
+                0,
+                sizeof(ex::vulkan::ubo),
+                0,
+                &data);
+    memcpy(data, ubo, sizeof(ex::vulkan::ubo));
+    vkUnmapMemory(m_logical_device,
+                  m_uniform_buffer_memory);
 }
