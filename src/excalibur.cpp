@@ -91,7 +91,8 @@ int main() {
                                           0.01f,
                                           10.0f);
 
-        ubo.light_pos = glm::vec3(2.0f, -2.0f, 2.0f);
+        ubo.light_pos = glm::vec3(0.0f, 3.0f, 6.0f);
+        ubo.light_pos = glm::rotate(ubo.light_pos, glm::radians(60.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
         
         vulkan_backend->upload_uniform_buffer(&ubo);
         

@@ -20,10 +20,21 @@ void main() {
     vec3 camera = normalize(in_camera_pos);
     vec3 reflection = reflect(light, normal);
 
+    /*
     vec3 ambient_light = in_color * 0.1;
     vec3 diffuse_light = max(dot(normal, light), 0.0) * in_color;
     vec3 specular_light = pow(max(dot(reflection, camera), 0.0), 16.0) * vec3(1.35);
 
-    out_frag_color = vec4(ambient_light + diffuse_light + specular_light, 1.0);
+    out_frag_color = vec4(ambient_light + diffuse_light + specular_light, 1.0);*/
     //out_frag_color = vec4(normal, 1.0);
+
+    if (pow(max(dot(reflection, camera), 0.0), 5.0) > 0.5) {
+        out_frag_color = vec4(1.0);
+    } else if (dot(-camera, normal) < 0.5) {
+        out_frag_color = vec4(in_color / 10, 1.0);        
+    } else if (max(dot(normal, light), 0.0) >= 0.1) {
+        out_frag_color = vec4(in_color, 1.0);
+    } else {
+        out_frag_color = vec4(in_color / 5, 1.0);
+    }
 }
