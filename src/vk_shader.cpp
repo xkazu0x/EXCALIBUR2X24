@@ -5,7 +5,6 @@
 
 ex::vulkan::shader::shader(const char *file) {
     m_code = read_file(file);
-    EXINFO("shader size: %d", m_code.size());
 }
 
 ex::vulkan::shader::~shader() {
@@ -37,6 +36,11 @@ ex::vulkan::shader::destroy(VkDevice logical_device,
 VkShaderModule
 ex::vulkan::shader::module() {
     return m_module;
+}
+
+uint32_t
+ex::vulkan::shader::size() {
+    return m_code.size();
 }
 
 std::vector<char>

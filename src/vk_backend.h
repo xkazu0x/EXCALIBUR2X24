@@ -3,6 +3,9 @@
 #include "ex_window.h"
 #include "ex_vertex.h"
 
+#include "vk_shader.h"
+#include "vk_pipeline.h"
+
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
 
@@ -132,11 +135,8 @@ namespace ex::vulkan {
         VkFence m_fence;
         VkSemaphore m_semaphore_present;
         VkSemaphore m_semaphore_render;
-
-        VkPipeline m_graphics_pipeline;
-        VkViewport m_pipeline_viewport;
-        VkRect2D m_pipeline_scissor;
-        VkPipelineLayout m_pipeline_layout;
+        
+        ex::vulkan::graphics_pipeline m_graphics_pipeline;
         uint32_t m_pipeline_subpass;
 
         VkImage m_texture_image;

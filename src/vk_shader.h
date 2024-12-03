@@ -15,6 +15,7 @@ namespace ex::vulkan {
                      VkAllocationCallbacks *allocator);
 
         VkShaderModule module();
+        uint32_t size();
         
     private:
         std::vector<char> read_file(const char *file_name);
