@@ -4,13 +4,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
-#include <vector>
 #include <cstdint>
-#include <cstring>
-
-#include <fstream>
-#include <string>
-
+#include <vector>
 #include <array>
 
 VKAPI_ATTR VkBool32 VKAPI_CALL
@@ -75,27 +70,8 @@ ex::vulkan::backend::shutdown() {
                                  m_descriptor_set_layout,
                                  m_allocator);
     
-    vkFreeMemory(m_logical_device,
-                 m_uniform_buffer_memory,
-                 m_allocator);
-    vkDestroyBuffer(m_logical_device,
-                    m_uniform_buffer,
-                    m_allocator);
-    
-    if (m_index_buffer_memory) {
-        vkFreeMemory(m_logical_device,
-                     m_index_buffer_memory,
-                     m_allocator);
-        m_index_buffer_memory = 0;
-    }
-    
-    if (m_index_buffer) {
-        vkDestroyBuffer(m_logical_device,
-                        m_index_buffer,
-                        m_allocator);
-        m_index_buffer = 0;
-    }
-
+    m_uniform_buffer.destroy(m_logical_device, m_allocator);
+    m_index_buffer.destroy(m_logical_device, m_allocator);
     m_vertex_buffer.destroy(m_logical_device, m_allocator);
     
     // texture image ---------
@@ -145,22 +121,7 @@ ex::vulkan::backend::shutdown() {
     // --------------------
 
     // GRAPHICS PIPELINE ---
-    m_graphics_pipeline.destroy(m_logical_device,
-                                m_allocator);
-    // if (m_graphics_pipeline) {
-    //     vkDestroyPipeline(m_logical_device,
-    //                       m_graphics_pipeline,
-    //                       m_allocator);
-    //     m_graphics_pipeline = 0;
-    // }
-
-    // if (m_pipeline_layout) {
-    //     vkDestroyPipelineLayout(m_logical_device,
-    //                             m_pipeline_layout,
-    //                             m_allocator);
-    //     m_pipeline_layout = 0;
-    // }
-    // ------------------
+    m_graphics_pipeline.destroy(m_logical_device, m_allocator);
     
     if (m_semaphore_render) {
         vkDestroySemaphore(m_logical_device,
@@ -306,10 +267,11 @@ ex::vulkan::backend::render() {
     m_graphics_pipeline.update_viewport(m_command_buffers[next_image_index], m_swapchain_extent);
     m_graphics_pipeline.update_scissor(m_command_buffers[next_image_index], m_swapchain_extent);
 
+    // BUFFERS
     VkBuffer vertex_buffers[] = { m_vertex_buffer.handle(), };
     VkDeviceSize offsets[] = { 0 };
     vkCmdBindVertexBuffers(m_command_buffers[next_image_index], 0, 1, vertex_buffers, offsets);
-    vkCmdBindIndexBuffer(m_command_buffers[next_image_index], m_index_buffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(m_command_buffers[next_image_index], m_index_buffer.handle(), 0, VK_INDEX_TYPE_UINT32);
 
     vkCmdBindDescriptorSets(m_command_buffers[next_image_index],
                             VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -759,26 +721,6 @@ ex::vulkan::backend::create_swapchain(uint32_t width, uint32_t height) {
     // swapchain image views
     m_swapchain_image_views.resize(swapchain_image_count);
     for (uint32_t i = 0; i < swapchain_image_count; i++) {
-        /*
-        VkImageViewCreateInfo image_view_create_info = {};
-        image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        image_view_create_info.image = m_swapchain_images[i];
-        image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        image_view_create_info.format = m_swapchain_format.format;
-        image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_R;
-        image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_G;
-        image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_B;
-        image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_A;
-        image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        image_view_create_info.subresourceRange.baseMipLevel = 0;
-        image_view_create_info.subresourceRange.levelCount = 1;
-        image_view_create_info.subresourceRange.baseArrayLayer = 0;
-        image_view_create_info.subresourceRange.layerCount = 1;
-        VK_CHECK(vkCreateImageView(m_logical_device,
-                                   &image_view_create_info,
-                                   m_allocator,
-                                   &m_swapchain_image_views[i]));
-        */
         m_swapchain_image_views[i] = create_image_view(m_swapchain_images[i],
                                                        VK_IMAGE_VIEW_TYPE_2D,
                                                        m_swapchain_format.format,
@@ -1110,30 +1052,27 @@ ex::vulkan::backend::create_texture_image(const char *file) {
         throw std::runtime_error("Failed to load texture image");
     }
 
-    // Write image data to staging buffer
+    // COPY IMAGE DATA TO STAGING BUFFER
     VkDeviceSize image_size = width * height * 4;
 
-    VkBuffer staging_buffer;
-    VkDeviceMemory staging_buffer_memory;
-    create_buffer(image_size,
-                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                  staging_buffer,
-                  staging_buffer_memory);
-
-    void *data;
-    vkMapMemory(m_logical_device,
-                staging_buffer_memory,
-                0,
-                image_size,
-                0,
-                &data);
-    memcpy(data, image_data, static_cast<size_t>(image_size));
-    vkUnmapMemory(m_logical_device, staging_buffer_memory);
-
+    auto staging_buffer_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    auto staging_buffer_properties =
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    ex::vulkan::buffer staging_buffer;
+    staging_buffer.create(m_logical_device,
+                          m_physical_device,
+                          m_allocator,
+                          image_size,
+                          staging_buffer_usage,
+                          staging_buffer_properties);
+    staging_buffer.copy_data(m_logical_device,
+                             image_data,
+                             image_size);
+    
     stbi_image_free(image_data);
     
-    // Create Image
+    // CREATE IMAGE
     VkImageCreateInfo image_create_info = {};
     image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     image_create_info.pNext = nullptr;
@@ -1242,7 +1181,7 @@ ex::vulkan::backend::create_texture_image(const char *file) {
     buffer_image_copy.imageExtent.height = static_cast<uint32_t>(height);
     buffer_image_copy.imageExtent.depth = 1;    
     vkCmdCopyBufferToImage(copy_command_buffer,
-                           staging_buffer,
+                           staging_buffer.handle(),
                            m_texture_image,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                            1,
@@ -1283,8 +1222,7 @@ ex::vulkan::backend::create_texture_image(const char *file) {
     m_texture_image_layout = image_memory_barrier1.newLayout;
     
     // Destroy staging buffer
-    vkDestroyBuffer(m_logical_device, staging_buffer, m_allocator);
-    vkFreeMemory(m_logical_device, staging_buffer_memory, m_allocator);
+    staging_buffer.destroy(m_logical_device, m_allocator);
 
     // Create image view
     m_texture_image_view = create_image_view(m_texture_image,
@@ -1320,8 +1258,8 @@ ex::vulkan::backend::create_texture_image(const char *file) {
 
 void
 ex::vulkan::backend::create_vertex_buffer(std::vector<ex::vertex> vertices) {
-    uint32_t vertex_count = static_cast<uint32_t>(vertices.size());
-    VkDeviceSize vertex_buffer_size = sizeof(ex::vertex) * vertex_count;
+    m_vertex_count = static_cast<uint32_t>(vertices.size());
+    VkDeviceSize vertex_buffer_size = sizeof(ex::vertex) * m_vertex_count;
 
     // STAGING BUFFER
     auto staging_buffer_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
@@ -1362,76 +1300,58 @@ ex::vulkan::backend::create_vertex_buffer(std::vector<ex::vertex> vertices) {
 void
 ex::vulkan::backend::create_index_buffer(std::vector<uint32_t> indices) {
     m_index_count = static_cast<uint32_t>(indices.size());
-    VkDeviceSize buffer_size = sizeof(uint32_t) * m_index_count;
+    VkDeviceSize index_buffer_size = sizeof(uint32_t) * m_index_count;
 
-    VkBuffer staging_buffer;
-    VkDeviceMemory staging_buffer_memory;
-    create_buffer(buffer_size,
-                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                  staging_buffer,
-                  staging_buffer_memory);
+    // STAGING BUFFER
+    auto staging_buffer_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    auto staging_buffer_properties =
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    ex::vulkan::buffer staging_buffer;
+    staging_buffer.create(m_logical_device,
+                          m_physical_device,
+                          m_allocator,
+                          index_buffer_size,
+                          staging_buffer_usage,
+                          staging_buffer_properties);
+    staging_buffer.copy_data(m_logical_device,
+                             indices.data(),
+                             index_buffer_size);
 
-    void *data;
-    vkMapMemory(m_logical_device,
-                staging_buffer_memory,
-                0,
-                buffer_size,
-                0,
-                &data);
-    memcpy(data, indices.data(), (size_t) buffer_size);
-    vkUnmapMemory(m_logical_device, staging_buffer_memory);
-        
-    create_buffer(buffer_size,
-                  VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                  m_index_buffer, m_index_buffer_memory);
-
-    VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
-    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    command_buffer_allocate_info.commandPool = m_command_pool;
-    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    command_buffer_allocate_info.commandBufferCount = 1;
-
-    VkCommandBuffer command_buffer;
-    VK_CHECK(vkAllocateCommandBuffers(m_logical_device,
-                                      &command_buffer_allocate_info,
-                                      &command_buffer));
-
-    VkCommandBufferBeginInfo command_buffer_begin_info = {};
-    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info));
-
-    VkBufferCopy buffer_copy;
-    buffer_copy.srcOffset = 0;
-    buffer_copy.dstOffset = 0;
-    buffer_copy.size = buffer_size;
-    vkCmdCopyBuffer(command_buffer, staging_buffer, m_index_buffer, 1, &buffer_copy);
+    // INDEX BUFFER
+    auto index_buffer_usage =
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+        VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+    auto index_buffer_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    m_index_buffer.create(m_logical_device,
+                           m_physical_device,
+                           m_allocator,
+                           index_buffer_size,
+                           index_buffer_usage,
+                           index_buffer_properties);
+    m_index_buffer.copy_buffer(m_logical_device,
+                                m_command_pool,
+                                m_graphics_queue,
+                                staging_buffer.handle(),
+                                index_buffer_size);
     
-    VK_CHECK(vkEndCommandBuffer(command_buffer));
-
-    VkSubmitInfo submit_info = {};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &command_buffer;
-    VK_CHECK(vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE));
-
-    vkQueueWaitIdle(m_graphics_queue);
-    vkFreeCommandBuffers(m_logical_device, m_command_pool, 1, &command_buffer);
-    
-    vkDestroyBuffer(m_logical_device, staging_buffer, m_allocator);
-    vkFreeMemory(m_logical_device, staging_buffer_memory, m_allocator);
+    staging_buffer.destroy(m_logical_device, m_allocator);
 }
 
 void
 ex::vulkan::backend::create_uniform_buffer() {
-    VkDeviceSize buffer_size = sizeof(ex::vulkan::ubo);
-    create_buffer(buffer_size,
-                  VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                  m_uniform_buffer,
-                  m_uniform_buffer_memory);
+    VkDeviceSize uniform_buffer_size = sizeof(ex::vulkan::ubo);
+
+    auto uniform_buffer_usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+    auto uniform_buffer_properties =
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    m_uniform_buffer.create(m_logical_device,
+                            m_physical_device,
+                            m_allocator,
+                            uniform_buffer_size,
+                            uniform_buffer_usage,
+                            uniform_buffer_properties);
 }
 
 void
@@ -1469,7 +1389,7 @@ ex::vulkan::backend::create_descriptor_set() {
                                       &m_descriptor_set));
 
     VkDescriptorBufferInfo descriptor_buffer_info = {};
-    descriptor_buffer_info.buffer = m_uniform_buffer;
+    descriptor_buffer_info.buffer = m_uniform_buffer.handle();
     descriptor_buffer_info.offset = 0;
     descriptor_buffer_info.range = sizeof(ex::vulkan::ubo);
 
@@ -1504,7 +1424,8 @@ ex::vulkan::backend::create_descriptor_set() {
     vkUpdateDescriptorSets(m_logical_device,
                            write_descriptor_sets.size(),
                            write_descriptor_sets.data(),
-                           0, nullptr);
+                           0,
+                           nullptr);
 }
 
 void
@@ -1631,99 +1552,9 @@ ex::vulkan::backend::create_image_view(VkImage image,
     return out_image_view;
 }
 
-std::vector<char>
-ex::vulkan::backend::read_file(const char *filepath) {
-    std::ifstream file(filepath, std::ios::ate | std::ios::binary);
-    if (!file.is_open()) {
-        EXFATAL("Failed to open file");
-        throw std::runtime_error("Failed to open file");
-    }
-    
-    size_t file_size = static_cast<size_t>(file.tellg());
-    std::vector<char> buffer(file_size);
-    
-    file.seekg(0, file.beg);
-    file.read(buffer.data(), file_size);
-    file.close();
-    
-    return buffer;
-}
-
-VkShaderModule
-ex::vulkan::backend::create_shader_module(const std::vector<char> &shader_code) {
-    VkShaderModule out_shader_module;
-    VkShaderModuleCreateInfo shader_module_create_info = {};
-    shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    shader_module_create_info.codeSize = static_cast<size_t>(shader_code.size());
-    shader_module_create_info.pCode = reinterpret_cast<const uint32_t *>(shader_code.data());
-    VK_CHECK(vkCreateShaderModule(m_logical_device,
-                                  &shader_module_create_info,
-                                  m_allocator,
-                                  &out_shader_module));
-    return out_shader_module;
-}
-
-void
-ex::vulkan::backend::create_buffer(VkDeviceSize size,
-                                   VkBufferUsageFlags usage,
-                                   VkMemoryPropertyFlags properties,
-                                   VkBuffer &buffer,
-                                   VkDeviceMemory &buffer_memory) {
-    VkBufferCreateInfo buffer_create_info = {};
-    buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    buffer_create_info.size = size;
-    buffer_create_info.usage = usage;
-    buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    buffer_create_info.queueFamilyIndexCount = 0;
-    buffer_create_info.pQueueFamilyIndices = nullptr;
-    VK_CHECK(vkCreateBuffer(m_logical_device,
-                            &buffer_create_info,
-                            m_allocator,
-                            &buffer));
-
-    VkMemoryRequirements memory_requirements;
-    vkGetBufferMemoryRequirements(m_logical_device,
-                                  buffer,
-                                  &memory_requirements);
-    
-    VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
-    vkGetPhysicalDeviceMemoryProperties(m_physical_device, &physical_device_memory_properties);
-    
-    uint32_t memory_type_index = 0;
-    // TODO: check error
-    for (uint32_t i = 0; i < physical_device_memory_properties.memoryTypeCount; ++i) {
-        if ((memory_requirements.memoryTypeBits & (1 << i)) &&
-            (physical_device_memory_properties.memoryTypes[i].propertyFlags & properties) == properties) {
-            memory_type_index = i;
-            break;
-        }
-    }
-    
-    VkMemoryAllocateInfo memory_allocate_info = {};
-    memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    memory_allocate_info.allocationSize = memory_requirements.size;
-    memory_allocate_info.memoryTypeIndex = memory_type_index;
-    VK_CHECK(vkAllocateMemory(m_logical_device,
-                              &memory_allocate_info,
-                              m_allocator,
-                              &buffer_memory));
-
-    vkBindBufferMemory(m_logical_device,
-                       buffer,
-                       buffer_memory,
-                       0);
-}
-
 void
 ex::vulkan::backend::upload_uniform_buffer(ex::vulkan::ubo *ubo) {
-    void *data;
-    vkMapMemory(m_logical_device,
-                m_uniform_buffer_memory,
-                0,
-                sizeof(ex::vulkan::ubo),
-                0,
-                &data);
-    memcpy(data, ubo, sizeof(ex::vulkan::ubo));
-    vkUnmapMemory(m_logical_device,
-                  m_uniform_buffer_memory);
+    m_uniform_buffer.copy_data(m_logical_device,
+                               ubo,
+                               sizeof(ex::vulkan::ubo));
 }

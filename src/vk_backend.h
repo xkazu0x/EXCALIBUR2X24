@@ -84,14 +84,6 @@ namespace ex::vulkan {
                                       VkFormat format,
                                       VkImageAspectFlags aspect_flags);
         
-        std::vector<char> read_file(const char *filepath);
-        VkShaderModule create_shader_module(const std::vector<char> &shader_module);
-        void create_buffer(VkDeviceSize size,
-                           VkBufferUsageFlags usage,
-                           VkMemoryPropertyFlags properties,
-                           VkBuffer &buffer,
-                           VkDeviceMemory &buffer_memory);
-        
     private:
         VkAllocationCallbacks *m_allocator;
         VkInstance m_instance;
@@ -147,14 +139,11 @@ namespace ex::vulkan {
         VkSampler m_texture_image_sampler;
         
         ex::vulkan::buffer m_vertex_buffer;
-        
-        VkBuffer m_index_buffer;
-        VkDeviceMemory m_index_buffer_memory;
+        ex::vulkan::buffer m_index_buffer;
+        uint32_t m_vertex_count;
         uint32_t m_index_count;
 
-        VkBuffer m_uniform_buffer;
-        VkDeviceMemory m_uniform_buffer_memory;
-
+        ex::vulkan::buffer m_uniform_buffer;
         VkDescriptorSetLayout m_descriptor_set_layout;
         VkDescriptorPool m_descriptor_pool;
         VkDescriptorSet m_descriptor_set;
