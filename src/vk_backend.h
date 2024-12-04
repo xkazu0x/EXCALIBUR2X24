@@ -146,7 +146,8 @@ namespace ex::vulkan {
         VkImageView m_texture_image_view;
         VkSampler m_texture_image_sampler;
         
-        ex::vulkan::vbo m_vertex_buffer;
+        ex::vulkan::buffer m_vertex_buffer;
+        
         VkBuffer m_index_buffer;
         VkDeviceMemory m_index_buffer_memory;
         uint32_t m_index_count;

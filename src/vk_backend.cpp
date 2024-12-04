@@ -96,8 +96,7 @@ ex::vulkan::backend::shutdown() {
         m_index_buffer = 0;
     }
 
-    m_vertex_buffer.destroy(m_logical_device,
-                            m_allocator);
+    m_vertex_buffer.destroy(m_logical_device, m_allocator);
     
     // texture image ---------
     if (m_texture_image_sampler) {
@@ -1321,12 +1320,43 @@ ex::vulkan::backend::create_texture_image(const char *file) {
 
 void
 ex::vulkan::backend::create_vertex_buffer(std::vector<ex::vertex> vertices) {
-    m_vertex_buffer.load(vertices);
+    uint32_t vertex_count = static_cast<uint32_t>(vertices.size());
+    VkDeviceSize vertex_buffer_size = sizeof(ex::vertex) * vertex_count;
+
+    // STAGING BUFFER
+    auto staging_buffer_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    auto staging_buffer_properties =
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+    ex::vulkan::buffer staging_buffer;
+    staging_buffer.create(m_logical_device,
+                          m_physical_device,
+                          m_allocator,
+                          vertex_buffer_size,
+                          staging_buffer_usage,
+                          staging_buffer_properties);
+    staging_buffer.copy_data(m_logical_device,
+                             vertices.data(),
+                             vertex_buffer_size);
+
+    // VERTEX BUFFER
+    auto vertex_buffer_usage =
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    auto vertex_buffer_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
     m_vertex_buffer.create(m_logical_device,
                            m_physical_device,
                            m_allocator,
-                           m_command_pool,
-                           m_graphics_queue);
+                           vertex_buffer_size,
+                           vertex_buffer_usage,
+                           vertex_buffer_properties);
+    m_vertex_buffer.copy_buffer(m_logical_device,
+                                m_command_pool,
+                                m_graphics_queue,
+                                staging_buffer.handle(),
+                                vertex_buffer_size);
+    
+    staging_buffer.destroy(m_logical_device, m_allocator);
 }
 
 void

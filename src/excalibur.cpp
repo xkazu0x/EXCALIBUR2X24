@@ -48,11 +48,11 @@ int main() {
 
     vulkan_backend->create_texture_image("res/textures/paris.jpg");
 
-    ex::mesh model;
-    model.create("res/meshes/dragon.obj");
-    
-    vulkan_backend->create_vertex_buffer(model.vertices());
-    vulkan_backend->create_index_buffer(model.indices());
+    ex::mesh mesh;
+    mesh.create("res/meshes/dragon.obj");
+
+    vulkan_backend->create_vertex_buffer(mesh.vertices());
+    vulkan_backend->create_index_buffer(mesh.indices());
     vulkan_backend->create_uniform_buffer();
 
     vulkan_backend->create_descriptor_pool();
