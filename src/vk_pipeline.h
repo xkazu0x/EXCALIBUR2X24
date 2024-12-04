@@ -16,7 +16,7 @@ namespace ex::vulkan {
 
         void create_shader_stages(VkShaderModule vertex_module,
                                   VkShaderModule fragment_module);
-        void create_vertex_input_state(VkVertexInputBindingDescription *vertex_input_binding,
+        void create_vertex_input_state(std::vector<VkVertexInputBindingDescription> &vertex_input_bindings,
                                        std::vector<VkVertexInputAttributeDescription> &vertex_input_attributes);
         void create_input_assembly_state(VkPrimitiveTopology topology);
         void create_viewport_state(VkExtent2D extent);

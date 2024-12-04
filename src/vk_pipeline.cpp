@@ -73,12 +73,12 @@ ex::vulkan::graphics_pipeline::create_shader_stages(VkShaderModule vertex_module
 }
 
 void
-ex::vulkan::graphics_pipeline::create_vertex_input_state(VkVertexInputBindingDescription *vertex_input_binding,
+ex::vulkan::graphics_pipeline::create_vertex_input_state(std::vector<VkVertexInputBindingDescription> &vertex_input_bindings,
                                                          std::vector<VkVertexInputAttributeDescription> &vertex_input_attributes) {
     VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = {};
     vertex_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertex_input_state_create_info.vertexBindingDescriptionCount = 1;
-    vertex_input_state_create_info.pVertexBindingDescriptions = vertex_input_binding;
+    vertex_input_state_create_info.vertexBindingDescriptionCount = static_cast<uint32_t>(vertex_input_bindings.size());
+    vertex_input_state_create_info.pVertexBindingDescriptions = vertex_input_bindings.data();
     vertex_input_state_create_info.vertexAttributeDescriptionCount = static_cast<uint32_t>(vertex_input_attributes.size());
     vertex_input_state_create_info.pVertexAttributeDescriptions = vertex_input_attributes.data();
 

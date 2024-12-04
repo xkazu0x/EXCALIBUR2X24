@@ -11,13 +11,13 @@ namespace ex {
             : pos(pos), color(color), uv(uv), normal(normal) {
         }
 
-        static VkVertexInputBindingDescription get_binding_description() {
-            VkVertexInputBindingDescription vertex_input_binding_description = {};
-            vertex_input_binding_description.binding = 0;
-            vertex_input_binding_description.stride = sizeof(ex::vertex);
-            vertex_input_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        static std::vector<VkVertexInputBindingDescription> get_binding_descriptions() {
+            std::vector<VkVertexInputBindingDescription> vertex_input_binding_descriptions(1);
+            vertex_input_binding_descriptions[0].binding = 0;
+            vertex_input_binding_descriptions[0].stride = sizeof(ex::vertex);
+            vertex_input_binding_descriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
             
-            return vertex_input_binding_description;
+            return vertex_input_binding_descriptions;
         }
 
         static std::vector<VkVertexInputAttributeDescription> get_attribute_descriptions() {

@@ -281,10 +281,11 @@ ex::vulkan::backend::render() {
                             &m_descriptor_set,
                             0,
                             nullptr);
-    
+    // DRAW
     //vkCmdDraw(m_command_buffers[next_image_index], m_vertex_count, 1, 0, 0);
     vkCmdDrawIndexed(m_command_buffers[next_image_index], m_index_count, 1, 0, 0, 0);
-    
+
+    // END RENDER PASS
     vkCmdEndRenderPass(m_command_buffers[next_image_index]);
     VK_CHECK(vkEndCommandBuffer(m_command_buffers[next_image_index]));
 
@@ -630,6 +631,7 @@ ex::vulkan::backend::create_swapchain(uint32_t width, uint32_t height) {
     for (uint32_t i = 0; i < m_swapchain_formats.size(); i++) {
         VkSurfaceFormatKHR format = m_swapchain_formats[i];
         if (format.format == VK_FORMAT_B8G8R8A8_UNORM &&
+        //if (format.format == VK_FORMAT_B8G8R8A8_SRGB &&
             format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
             m_swapchain_format = format;
             found_format = true;
@@ -908,11 +910,11 @@ ex::vulkan::backend::create_pipeline() {
     m_graphics_pipeline.create_shader_stages(vertex_shader.module(),
                                              fragment_shader.module());
 
-    VkVertexInputBindingDescription vertex_input_binding_description1 = ex::vertex::get_binding_description();
-    std::vector<VkVertexInputAttributeDescription> vertex_input_attribute_descriptions1 = ex::vertex::get_attribute_descriptions();
+    std::vector<VkVertexInputBindingDescription> vertex_input_binding_descriptions = ex::vertex::get_binding_descriptions();
+    std::vector<VkVertexInputAttributeDescription> vertex_input_attribute_descriptions = ex::vertex::get_attribute_descriptions();
 
-    m_graphics_pipeline.create_vertex_input_state(&vertex_input_binding_description1,
-                                                  vertex_input_attribute_descriptions1);
+    m_graphics_pipeline.create_vertex_input_state(vertex_input_binding_descriptions,
+                                                  vertex_input_attribute_descriptions);
     m_graphics_pipeline.create_input_assembly_state(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
     m_graphics_pipeline.create_viewport_state(m_swapchain_extent);
     m_graphics_pipeline.create_rasterization_state(VK_POLYGON_MODE_FILL,
