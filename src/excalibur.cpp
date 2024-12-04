@@ -50,16 +50,14 @@ int main() {
 
     ex::mesh model;
     model.create("res/meshes/dragon.obj");
-    std::vector<ex::vertex> model_vertices = model.vertices();
-    std::vector<uint32_t> model_indices = model.indices();
     
-    vulkan_backend->create_vertex_buffer(model_vertices);
-    vulkan_backend->create_index_buffer(model_indices);
+    vulkan_backend->create_vertex_buffer(model.vertices());
+    vulkan_backend->create_index_buffer(model.indices());
     vulkan_backend->create_uniform_buffer();
 
     vulkan_backend->create_descriptor_pool();
     vulkan_backend->create_descriptor_set();
-
+    
     ex::vulkan::ubo ubo;
     
     auto last_time = std::chrono::high_resolution_clock::now();

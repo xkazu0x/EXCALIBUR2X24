@@ -95,21 +95,10 @@ ex::vulkan::backend::shutdown() {
                         m_allocator);
         m_index_buffer = 0;
     }
-    
-    if (m_vertex_buffer_memory) {
-        vkFreeMemory(m_logical_device,
-                     m_vertex_buffer_memory,
-                     m_allocator);
-        m_vertex_buffer_memory = 0;
-    }
-    
-    if (m_vertex_buffer) {
-        vkDestroyBuffer(m_logical_device,
-                        m_vertex_buffer,
-                        m_allocator);
-        m_vertex_buffer = 0;
-    }
 
+    m_vertex_buffer.destroy(m_logical_device,
+                            m_allocator);
+    
     // texture image ---------
     if (m_texture_image_sampler) {
         vkDestroySampler(m_logical_device,
@@ -318,8 +307,8 @@ ex::vulkan::backend::render() {
     m_graphics_pipeline.update_viewport(m_command_buffers[next_image_index], m_swapchain_extent);
     m_graphics_pipeline.update_scissor(m_command_buffers[next_image_index], m_swapchain_extent);
 
-    VkBuffer vertex_buffers[] = {m_vertex_buffer};
-    VkDeviceSize offsets[] = {0};
+    VkBuffer vertex_buffers[] = { m_vertex_buffer.handle(), };
+    VkDeviceSize offsets[] = { 0 };
     vkCmdBindVertexBuffers(m_command_buffers[next_image_index], 0, 1, vertex_buffers, offsets);
     vkCmdBindIndexBuffer(m_command_buffers[next_image_index], m_index_buffer, 0, VK_INDEX_TYPE_UINT32);
 
@@ -1331,72 +1320,82 @@ ex::vulkan::backend::create_texture_image(const char *file) {
 }
 
 void
-ex::vulkan::backend::create_vertex_buffer(std::vector<ex::vertex> &vertices) {
-    m_vertex_count = static_cast<uint32_t>(vertices.size());
-    VkDeviceSize buffer_size = sizeof(ex::vertex) * m_vertex_count;
+ex::vulkan::backend::create_vertex_buffer(std::vector<ex::vertex> vertices) {
+    m_vertex_buffer.load(vertices);
+    m_vertex_buffer.create(m_logical_device,
+                           m_physical_device,
+                           m_allocator);
+    m_vertex_buffer.upload(m_logical_device,
+                           m_physical_device,
+                           m_allocator,
+                           m_command_pool,
+                           m_graphics_queue);
+    
+    // m_vertex_count = static_cast<uint32_t>(vertices.size());
+    // VkDeviceSize buffer_size = sizeof(ex::vertex) * m_vertex_count;
 
-    VkBuffer staging_buffer;
-    VkDeviceMemory staging_buffer_memory;
-    create_buffer(buffer_size,
-                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                  staging_buffer,
-                  staging_buffer_memory);
+    // VkBuffer staging_buffer;
+    // VkDeviceMemory staging_buffer_memory;
+    // create_buffer(buffer_size,
+    //               VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    //               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+    //               staging_buffer,
+    //               staging_buffer_memory);
 
-    void *data;
-    vkMapMemory(m_logical_device,
-                staging_buffer_memory,
-                0,
-                buffer_size,
-                0,
-                &data);
-    memcpy(data, vertices.data(), static_cast<size_t>(buffer_size));
-    vkUnmapMemory(m_logical_device, staging_buffer_memory);
+    // void *data;
+    // vkMapMemory(m_logical_device,
+    //             staging_buffer_memory,
+    //             0,
+    //             buffer_size,
+    //             0,
+    //             &data);
+    // memcpy(data, vertices.data(), static_cast<size_t>(buffer_size));
+    // vkUnmapMemory(m_logical_device, staging_buffer_memory);
         
-    create_buffer(buffer_size,
-                  VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-                  VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                  m_vertex_buffer, m_vertex_buffer_memory);
+    // create_buffer(buffer_size,
+    //               VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+    //               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+    //               m_vertex_buffer, m_vertex_buffer_memory);
 
-    VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
-    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    command_buffer_allocate_info.commandPool = m_command_pool;
-    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    command_buffer_allocate_info.commandBufferCount = 1;
+    // VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
+    // command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    // command_buffer_allocate_info.commandPool = m_command_pool;
+    // command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    // command_buffer_allocate_info.commandBufferCount = 1;
 
-    VkCommandBuffer command_buffer;
-    VK_CHECK(vkAllocateCommandBuffers(m_logical_device,
-                                      &command_buffer_allocate_info,
-                                      &command_buffer));
+    // VkCommandBuffer command_buffer;
+    // VK_CHECK(vkAllocateCommandBuffers(m_logical_device,
+    //                                   &command_buffer_allocate_info,
+    //                                   &command_buffer));
 
-    VkCommandBufferBeginInfo command_buffer_begin_info = {};
-    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info));
+    // VkCommandBufferBeginInfo command_buffer_begin_info = {};
+    // command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    // command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    // VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info));
 
-    VkBufferCopy buffer_copy;
-    buffer_copy.srcOffset = 0;
-    buffer_copy.dstOffset = 0;
-    buffer_copy.size = buffer_size;
-    vkCmdCopyBuffer(command_buffer, staging_buffer, m_vertex_buffer, 1, &buffer_copy);
+    // VkBufferCopy buffer_copy;
+    // buffer_copy.srcOffset = 0;
+    // buffer_copy.dstOffset = 0;
+    // buffer_copy.size = buffer_size;
+    // vkCmdCopyBuffer(command_buffer, staging_buffer, m_vertex_buffer, 1, &buffer_copy);
     
-    VK_CHECK(vkEndCommandBuffer(command_buffer));
+    // VK_CHECK(vkEndCommandBuffer(command_buffer));
 
-    VkSubmitInfo submit_info = {};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &command_buffer;
-    VK_CHECK(vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE));
+    // VkSubmitInfo submit_info = {};
+    // submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    // submit_info.commandBufferCount = 1;
+    // submit_info.pCommandBuffers = &command_buffer;
+    // VK_CHECK(vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE));
 
-    vkQueueWaitIdle(m_graphics_queue);
-    vkFreeCommandBuffers(m_logical_device, m_command_pool, 1, &command_buffer);
+    // vkQueueWaitIdle(m_graphics_queue);
+    // vkFreeCommandBuffers(m_logical_device, m_command_pool, 1, &command_buffer);
     
-    vkDestroyBuffer(m_logical_device, staging_buffer, m_allocator);
-    vkFreeMemory(m_logical_device, staging_buffer_memory, m_allocator);
+    // vkDestroyBuffer(m_logical_device, staging_buffer, m_allocator);
+    // vkFreeMemory(m_logical_device, staging_buffer_memory, m_allocator);
 }
 
 void
-ex::vulkan::backend::create_index_buffer(std::vector<uint32_t> &indices) {
+ex::vulkan::backend::create_index_buffer(std::vector<uint32_t> indices) {
     m_index_count = static_cast<uint32_t>(indices.size());
     VkDeviceSize buffer_size = sizeof(uint32_t) * m_index_count;
 

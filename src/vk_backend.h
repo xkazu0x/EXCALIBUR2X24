@@ -5,6 +5,7 @@
 
 #include "vk_shader.h"
 #include "vk_pipeline.h"
+#include "vk_buffer.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
@@ -47,8 +48,8 @@ namespace ex::vulkan {
 
         void create_texture_image(const char *file);
 
-        void create_vertex_buffer(std::vector<ex::vertex> &vertices);
-        void create_index_buffer(std::vector<uint32_t> &indices);
+        void create_vertex_buffer(std::vector<ex::vertex> vertices);
+        void create_index_buffer(std::vector<uint32_t> indices);
         void create_uniform_buffer();
 
         void create_descriptor_pool();
@@ -145,11 +146,9 @@ namespace ex::vulkan {
         VkImageView m_texture_image_view;
         VkSampler m_texture_image_sampler;
         
-        VkBuffer m_vertex_buffer;
+        ex::vulkan::vbo m_vertex_buffer;
         VkBuffer m_index_buffer;
-        VkDeviceMemory m_vertex_buffer_memory;
         VkDeviceMemory m_index_buffer_memory;
-        uint32_t m_vertex_count;
         uint32_t m_index_count;
 
         VkBuffer m_uniform_buffer;
