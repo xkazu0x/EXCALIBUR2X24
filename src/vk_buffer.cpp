@@ -10,7 +10,9 @@ ex::vulkan::vbo::load(std::vector<ex::vertex> vertices) {
 void
 ex::vulkan::vbo::create(VkDevice logical_device,
                         VkPhysicalDevice physical_device,
-                        VkAllocationCallbacks *allocator) {
+                        VkAllocationCallbacks *allocator,
+                        VkCommandPool command_pool,
+                        VkQueue queue) {
     // CREATE BUFFER
     VkBufferCreateInfo buffer_create_info = {};
     buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -51,14 +53,7 @@ ex::vulkan::vbo::create(VkDevice logical_device,
                               &memory_allocate_info,
                               allocator,
                               &m_memory));
-}
 
-void
-ex::vulkan::vbo::upload(VkDevice logical_device,
-                        VkPhysicalDevice physical_device,
-                        VkAllocationCallbacks *allocator,
-                        VkCommandPool command_pool,
-                        VkQueue queue) {
     // CREATE STAGING BUFFER
     VkBuffer staging_buffer;
     VkDeviceMemory staging_buffer_memory;
@@ -80,10 +75,7 @@ ex::vulkan::vbo::upload(VkDevice logical_device,
     vkGetBufferMemoryRequirements(logical_device,
                                   staging_buffer,
                                   &staging_memory_requirements);
-    
-    VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
-    vkGetPhysicalDeviceMemoryProperties(physical_device, &physical_device_memory_properties);
-    
+        
     uint32_t staging_memory_type_index = 0;
     // TODO: check error
     for (uint32_t i = 0; i < physical_device_memory_properties.memoryTypeCount; ++i) {
@@ -105,6 +97,7 @@ ex::vulkan::vbo::upload(VkDevice logical_device,
                               allocator,
                               &staging_buffer_memory));
 
+    // COPY DATA TO BUFFER
     vkBindBufferMemory(logical_device,
                        staging_buffer,
                        staging_buffer_memory,

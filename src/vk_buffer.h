@@ -4,14 +4,11 @@
 #include <vulkan/vulkan.h>
 #include <vector>
 
-namespace ex::vulkan {    
+namespace ex::vulkan {
     class vbo {
     public:
         void load(std::vector<ex::vertex> vertices);
         void create(VkDevice logical_device,
-                    VkPhysicalDevice physical_device,
-                    VkAllocationCallbacks *allocator);
-        void upload(VkDevice logical_device,
                     VkPhysicalDevice physical_device,
                     VkAllocationCallbacks *allocator,
                     VkCommandPool command_pool,
