@@ -71,8 +71,7 @@ ex::vulkan::backend::shutdown() {
                                  m_allocator);
     
     m_uniform_buffer.destroy(m_logical_device, m_allocator);
-    m_index_buffer.destroy(m_logical_device, m_allocator);
-    m_vertex_buffer.destroy(m_logical_device, m_allocator);
+    m_dragon.destroy(m_logical_device, m_allocator);
     
     // texture image ---------
     if (m_texture_image_sampler) {
@@ -215,6 +214,36 @@ ex::vulkan::backend::shutdown() {
     }
 }
 
+void
+ex::vulkan::backend::update(float delta) {
+    m_push_data.model = glm::mat4(1.0f);    
+    float scale = 0.25f;
+    m_push_data.model = glm::scale(m_push_data.model,
+                                   glm::vec3(scale, scale, scale));
+    
+    m_push_data.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f),
+                                   glm::vec3(0.0f, 0.0f, 1.0f),
+                                   glm::vec3(0.0f, -1.0f, 0.0f));
+    m_push_data.view = glm::rotate(m_push_data.view, glm::radians(-20.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    m_push_data.view = glm::translate(m_push_data.view, glm::vec3(0.0f, -2.2f, 3.0f));
+    m_push_data.view = glm::rotate(m_push_data.view, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
+    
+    float aspect = m_swapchain_extent.width / (float) m_swapchain_extent.height;
+    m_push_data.projection = glm::perspective(glm::radians(80.0f),
+                                              aspect,
+                                              0.01f,
+                                              10.0f);
+    
+    m_push_data.light_pos = glm::vec3(0.0f, 3.0f, 6.0f);
+    m_push_data.light_pos = glm::rotate(m_push_data.light_pos,
+                                        glm::radians(60.0f) * delta,
+                                        glm::vec3(0.0f, 1.0f, 0.0f));
+    
+    m_uniform_buffer.copy_data(m_logical_device,
+                               &m_push_data,
+                               sizeof(ex::vulkan::push_data));
+}
+
 bool
 ex::vulkan::backend::render() {
     VK_CHECK(vkWaitForFences(m_logical_device,
@@ -267,12 +296,6 @@ ex::vulkan::backend::render() {
     m_graphics_pipeline.update_viewport(m_command_buffers[next_image_index], m_swapchain_extent);
     m_graphics_pipeline.update_scissor(m_command_buffers[next_image_index], m_swapchain_extent);
 
-    // BUFFERS
-    VkBuffer vertex_buffers[] = { m_vertex_buffer.handle(), };
-    VkDeviceSize offsets[] = { 0 };
-    vkCmdBindVertexBuffers(m_command_buffers[next_image_index], 0, 1, vertex_buffers, offsets);
-    vkCmdBindIndexBuffer(m_command_buffers[next_image_index], m_index_buffer.handle(), 0, VK_INDEX_TYPE_UINT32);
-
     vkCmdBindDescriptorSets(m_command_buffers[next_image_index],
                             VK_PIPELINE_BIND_POINT_GRAPHICS,
                             m_graphics_pipeline.layout(),
@@ -281,10 +304,11 @@ ex::vulkan::backend::render() {
                             &m_descriptor_set,
                             0,
                             nullptr);
-    // DRAW
-    //vkCmdDraw(m_command_buffers[next_image_index], m_vertex_count, 1, 0, 0);
-    vkCmdDrawIndexed(m_command_buffers[next_image_index], m_index_count, 1, 0, 0, 0);
-
+    
+    // MODELS
+    m_dragon.bind(m_command_buffers[next_image_index]);
+    m_dragon.draw(m_command_buffers[next_image_index]);
+    
     // END RENDER PASS
     vkCmdEndRenderPass(m_command_buffers[next_image_index]);
     VK_CHECK(vkEndCommandBuffer(m_command_buffers[next_image_index]));
@@ -899,8 +923,10 @@ ex::vulkan::backend::create_descriptor_set_layout() {
 
 void
 ex::vulkan::backend::create_pipeline() {
-    ex::vulkan::shader vertex_shader("res/shaders/default.vert.spv");
-    ex::vulkan::shader fragment_shader("res/shaders/default.frag.spv");
+    ex::vulkan::shader vertex_shader;
+    ex::vulkan::shader fragment_shader;
+    vertex_shader.load("res/shaders/default.vert.spv");
+    fragment_shader.load("res/shaders/default.frag.spv");
     EXINFO("Vertex shader size: %d", vertex_shader.size());
     EXINFO("Fragment shader size: %d", fragment_shader.size());
     
@@ -1259,90 +1285,18 @@ ex::vulkan::backend::create_texture_image(const char *file) {
 }
 
 void
-ex::vulkan::backend::create_vertex_buffer(std::vector<ex::vertex> vertices) {
-    m_vertex_count = static_cast<uint32_t>(vertices.size());
-    VkDeviceSize vertex_buffer_size = sizeof(ex::vertex) * m_vertex_count;
-
-    // STAGING BUFFER
-    auto staging_buffer_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    auto staging_buffer_properties =
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    ex::vulkan::buffer staging_buffer;
-    staging_buffer.create(m_logical_device,
-                          m_physical_device,
-                          m_allocator,
-                          vertex_buffer_size,
-                          staging_buffer_usage,
-                          staging_buffer_properties);
-    staging_buffer.copy_data(m_logical_device,
-                             vertices.data(),
-                             vertex_buffer_size);
-
-    // VERTEX BUFFER
-    auto vertex_buffer_usage =
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    auto vertex_buffer_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    m_vertex_buffer.create(m_logical_device,
-                           m_physical_device,
-                           m_allocator,
-                           vertex_buffer_size,
-                           vertex_buffer_usage,
-                           vertex_buffer_properties);
-    m_vertex_buffer.copy_buffer(m_logical_device,
-                                m_command_pool,
-                                m_graphics_queue,
-                                staging_buffer.handle(),
-                                vertex_buffer_size);
-    
-    staging_buffer.destroy(m_logical_device, m_allocator);
-}
-
-void
-ex::vulkan::backend::create_index_buffer(std::vector<uint32_t> indices) {
-    m_index_count = static_cast<uint32_t>(indices.size());
-    VkDeviceSize index_buffer_size = sizeof(uint32_t) * m_index_count;
-
-    // STAGING BUFFER
-    auto staging_buffer_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    auto staging_buffer_properties =
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    ex::vulkan::buffer staging_buffer;
-    staging_buffer.create(m_logical_device,
-                          m_physical_device,
-                          m_allocator,
-                          index_buffer_size,
-                          staging_buffer_usage,
-                          staging_buffer_properties);
-    staging_buffer.copy_data(m_logical_device,
-                             indices.data(),
-                             index_buffer_size);
-
-    // INDEX BUFFER
-    auto index_buffer_usage =
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT |
-        VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-    auto index_buffer_properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    m_index_buffer.create(m_logical_device,
-                           m_physical_device,
-                           m_allocator,
-                           index_buffer_size,
-                           index_buffer_usage,
-                           index_buffer_properties);
-    m_index_buffer.copy_buffer(m_logical_device,
-                                m_command_pool,
-                                m_graphics_queue,
-                                staging_buffer.handle(),
-                                index_buffer_size);
-    
-    staging_buffer.destroy(m_logical_device, m_allocator);
+ex::vulkan::backend::create_models() {
+    m_dragon.load("res/meshes/dragon.obj");
+    m_dragon.create(m_logical_device,
+                    m_physical_device,
+                    m_allocator,
+                    m_command_pool,
+                    m_graphics_queue);
 }
 
 void
 ex::vulkan::backend::create_uniform_buffer() {
-    VkDeviceSize uniform_buffer_size = sizeof(ex::vulkan::ubo);
+    VkDeviceSize uniform_buffer_size = sizeof(ex::vulkan::push_data);
 
     auto uniform_buffer_usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     auto uniform_buffer_properties =
@@ -1393,7 +1347,7 @@ ex::vulkan::backend::create_descriptor_set() {
     VkDescriptorBufferInfo descriptor_buffer_info = {};
     descriptor_buffer_info.buffer = m_uniform_buffer.handle();
     descriptor_buffer_info.offset = 0;
-    descriptor_buffer_info.range = sizeof(ex::vulkan::ubo);
+    descriptor_buffer_info.range = sizeof(ex::vulkan::push_data);
 
     VkDescriptorImageInfo descriptor_image_info = {};
     descriptor_image_info.sampler = m_texture_image_sampler;
@@ -1552,11 +1506,4 @@ ex::vulkan::backend::create_image_view(VkImage image,
                                m_allocator,
                                &out_image_view));
     return out_image_view;
-}
-
-void
-ex::vulkan::backend::upload_uniform_buffer(ex::vulkan::ubo *ubo) {
-    m_uniform_buffer.copy_data(m_logical_device,
-                               ubo,
-                               sizeof(ex::vulkan::ubo));
 }

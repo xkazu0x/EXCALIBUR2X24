@@ -2,6 +2,7 @@
 
 #include "ex_window.h"
 #include "ex_vertex.h"
+#include "ex_model.h"
 
 #include "vk_shader.h"
 #include "vk_pipeline.h"
@@ -19,7 +20,7 @@
 #include <memory>
 
 namespace ex::vulkan {
-    struct ubo {
+    struct push_data {
         glm::mat4 model;
         glm::mat4 view;
         glm::mat4 projection;
@@ -32,6 +33,7 @@ namespace ex::vulkan {
     public:
         bool initialize(ex::window *window);
         void shutdown();
+        void update(float delta);
         bool render();
 
         void create_command_pool();
@@ -48,15 +50,13 @@ namespace ex::vulkan {
 
         void create_texture_image(const char *file);
 
-        void create_vertex_buffer(std::vector<ex::vertex> vertices);
-        void create_index_buffer(std::vector<uint32_t> indices);
+        void create_models();
         void create_uniform_buffer();
 
         void create_descriptor_pool();
         void create_descriptor_set();
-
+        
         void recreate_swapchain(uint32_t width, uint32_t height);
-        void upload_uniform_buffer(ex::vulkan::ubo *ubo);
         
         VkDevice logical_device() {
             return m_logical_device;
@@ -64,10 +64,6 @@ namespace ex::vulkan {
 
         VkAllocationCallbacks *allocator() {
             return m_allocator;
-        }
-
-        VkExtent2D swapchain_extent() {
-            return m_swapchain_extent;
         }
 
     private:
@@ -137,13 +133,12 @@ namespace ex::vulkan {
         VkImageLayout m_texture_image_layout;
         VkImageView m_texture_image_view;
         VkSampler m_texture_image_sampler;
-        
-        ex::vulkan::buffer m_vertex_buffer;
-        ex::vulkan::buffer m_index_buffer;
-        uint32_t m_vertex_count;
-        uint32_t m_index_count;
 
+        ex::model m_dragon;
+        
+        ex::vulkan::push_data m_push_data;
         ex::vulkan::buffer m_uniform_buffer;
+        
         VkDescriptorSetLayout m_descriptor_set_layout;
         VkDescriptorPool m_descriptor_pool;
         VkDescriptorSet m_descriptor_set;

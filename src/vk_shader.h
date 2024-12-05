@@ -6,9 +6,7 @@
 namespace ex::vulkan {
     class shader {
     public:
-        shader(const char *file);
-        ~shader();
-        
+        void load(const char *file);
         void create(VkDevice logical_device,
                     VkAllocationCallbacks *allocator);
         void destroy(VkDevice logical_device,

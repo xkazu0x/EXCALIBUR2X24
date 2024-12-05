@@ -3,11 +3,9 @@
 #include "ex_logger.h"
 #include <fstream>
 
-ex::vulkan::shader::shader(const char *file) {
+void
+ex::vulkan::shader::load(const char *file) {
     m_code = read_file(file);
-}
-
-ex::vulkan::shader::~shader() {
 }
 
 void
