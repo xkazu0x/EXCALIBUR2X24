@@ -34,6 +34,8 @@ debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
 
 bool
 ex::vulkan::backend::initialize(ex::window *window) {
+    m_window = window;
+    
     if (!create_instance()) {
         EXERROR("Failed to create vulkan instance");
         return false;
@@ -55,6 +57,15 @@ ex::vulkan::backend::initialize(ex::window *window) {
         EXERROR("Failed to create vulkan logical device");
         return false;
     }
+
+    create_command_pool();
+
+    create_swapchain(window->width(), window->height());
+    create_depth_resources();
+    create_render_pass();
+    create_framebuffers();
+    create_sync_structures();
+    allocate_command_buffers();
     
     return true;
 }
@@ -97,120 +108,127 @@ ex::vulkan::backend::shutdown() {
                      m_texture_image_memory,
                      m_allocator);
     }
-    // --------------------
 
-    // depth image --------
-    if (m_depth_image_view) {
-        vkDestroyImageView(m_logical_device,
-                           m_depth_image_view,
-                           m_allocator);
-    }
-
-    if (m_depth_image) {
-        vkDestroyImage(m_logical_device,
-                       m_depth_image,
-                       m_allocator);
-    }
-    
-    if (m_depth_image_memory) {
-        vkFreeMemory(m_logical_device,
-                     m_depth_image_memory,
-                     m_allocator);
-    }
-    // --------------------
-
-    // GRAPHICS PIPELINE ---
     m_graphics_pipeline.destroy(m_logical_device, m_allocator);
-    
-    if (m_semaphore_render) {
-        vkDestroySemaphore(m_logical_device,
-                           m_semaphore_render,
-                           m_allocator);
-        m_semaphore_render = 0;
-    }
 
-    if (m_semaphore_present) {
-        vkDestroySemaphore(m_logical_device,
-                           m_semaphore_present,
-                           m_allocator);
-        m_semaphore_present = 0;
-    }
-    
-    if (m_fence) {
-        vkDestroyFence(m_logical_device,
-                       m_fence,
-                       m_allocator);
-        m_fence = 0;
-    }
-    
-    if (!m_command_buffers.empty()) {
-        vkFreeCommandBuffers(m_logical_device,
-                             m_command_pool,
-                             m_command_buffers.size(),
-                             m_command_buffers.data());
-    }
+    if (!m_command_buffers.empty()) vkFreeCommandBuffers(m_logical_device, m_command_pool, m_command_buffers.size(), m_command_buffers.data());
+    if (m_semaphore_render) vkDestroySemaphore(m_logical_device, m_semaphore_render, m_allocator);
+    if (m_semaphore_present) vkDestroySemaphore(m_logical_device, m_semaphore_present, m_allocator);
+    if (m_fence) vkDestroyFence(m_logical_device, m_fence, m_allocator);
     
     if (!m_swapchain_framebuffers.empty()) {
         for (uint32_t i = 0; i < m_swapchain_framebuffers.size(); i++) {
-            vkDestroyFramebuffer(m_logical_device,
-                                 m_swapchain_framebuffers[i],
-                                 m_allocator);
-            m_swapchain_framebuffers[i] = 0;
+            vkDestroyFramebuffer(m_logical_device, m_swapchain_framebuffers[i], m_allocator);
         }
     }
     
-    if (m_render_pass) {
-        vkDestroyRenderPass(m_logical_device,
-                            m_render_pass,
-                            m_allocator);
-        m_render_pass = 0;
-    }
+    if (m_render_pass) vkDestroyRenderPass(m_logical_device, m_render_pass, m_allocator);
+    if (m_depth_image_view) vkDestroyImageView(m_logical_device, m_depth_image_view, m_allocator);
+    if (m_depth_image) vkDestroyImage(m_logical_device, m_depth_image, m_allocator);
+    if (m_depth_image_memory) vkFreeMemory(m_logical_device, m_depth_image_memory, m_allocator);
     
     if (!m_swapchain_image_views.empty()) {
         for (uint32_t i = 0; i < m_swapchain_image_views.size(); i++) {
-            vkDestroyImageView(m_logical_device,
-                               m_swapchain_image_views[i],
-                               m_allocator);
-            m_swapchain_image_views[i] = 0;
+            vkDestroyImageView(m_logical_device, m_swapchain_image_views[i], m_allocator);
         }
     }
     
-    if (m_swapchain) {
-        vkDestroySwapchainKHR(m_logical_device,
-                              m_swapchain,
-                              m_allocator);
-        m_swapchain = 0;
-    }
-
-    if (m_command_pool) {
-        vkDestroyCommandPool(m_logical_device,
-                             m_command_pool,
-                             m_allocator);
-        m_command_pool = 0;
-    }
-    
-    if (m_logical_device) {        
-        vkDestroyDevice(m_logical_device, m_allocator);
-        m_logical_device = 0;
-    }
-    
-    if (m_surface) {
-        vkDestroySurfaceKHR(m_instance, m_surface, m_allocator);
-        m_surface = 0;
-    }
-    
+    if (m_swapchain) vkDestroySwapchainKHR(m_logical_device, m_swapchain, m_allocator);
+    if (m_command_pool) vkDestroyCommandPool(m_logical_device, m_command_pool, m_allocator);
+    if (m_logical_device) vkDestroyDevice(m_logical_device, m_allocator);    
+    if (m_surface) vkDestroySurfaceKHR(m_instance, m_surface, m_allocator);    
 #ifdef EXCALIBUR_DEBUG
     if (m_debug_messenger) {
         PFN_vkDestroyDebugUtilsMessengerEXT destroy_debug_messenger =
             (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
         destroy_debug_messenger(m_instance, m_debug_messenger, m_allocator);
-        m_debug_messenger = 0;
     }
-#endif
+#endif    
+    if (m_instance) vkDestroyInstance(m_instance, m_allocator);
+    m_window = nullptr;
+}
+
+void
+ex::vulkan::backend::begin() {
+    VK_CHECK(vkWaitForFences(m_logical_device,
+                             1,
+                             &m_fence,
+                             VK_TRUE,
+                             UINT64_MAX));
+
+    VkResult result = vkAcquireNextImageKHR(m_logical_device,
+                                            m_swapchain,
+                                            UINT64_MAX,
+                                            m_semaphore_present,
+                                            nullptr,
+                                            &m_next_image_index);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        recreate_swapchain(m_window->width(), m_window->height());
+    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+        EXFATAL("Failed to acquire swapchain image");
+        throw std::runtime_error("Failed to acquire swapchain image");
+    }
+
+    VK_CHECK(vkResetFences(m_logical_device, 1, &m_fence));
+    VK_CHECK(vkResetCommandBuffer(m_command_buffers[m_next_image_index], 0));
     
-    if (m_instance) {
-        vkDestroyInstance(m_instance, m_allocator);
-        m_instance = 0;
+    VkCommandBufferBeginInfo command_buffer_begin_info = {};
+    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    VK_CHECK(vkBeginCommandBuffer(m_command_buffers[m_next_image_index], &command_buffer_begin_info));
+
+    std::array<VkClearValue, 2> clear_values{};
+    clear_values[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+    clear_values[1].depthStencil = { 1.0f, 0 };
+    
+    VkRenderPassBeginInfo render_pass_begin_info = {};
+    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    render_pass_begin_info.renderPass = m_render_pass;
+    render_pass_begin_info.framebuffer = m_swapchain_framebuffers[m_next_image_index];
+    render_pass_begin_info.renderArea.offset = { 0, 0 };
+    render_pass_begin_info.renderArea.extent = m_swapchain_extent;
+    render_pass_begin_info.clearValueCount = static_cast<uint32_t>(clear_values.size());
+    render_pass_begin_info.pClearValues = clear_values.data();
+    
+    vkCmdBeginRenderPass(m_command_buffers[m_next_image_index],
+                         &render_pass_begin_info,
+                         VK_SUBPASS_CONTENTS_INLINE);    
+}
+
+void
+ex::vulkan::backend::end() {
+    vkCmdEndRenderPass(m_command_buffers[m_next_image_index]);
+    VK_CHECK(vkEndCommandBuffer(m_command_buffers[m_next_image_index]));
+
+    VkSubmitInfo submit_info = {};
+    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submit_info.waitSemaphoreCount = 1;
+    submit_info.pWaitSemaphores = &m_semaphore_present;
+    
+    VkPipelineStageFlags wait_stage_mask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    submit_info.pWaitDstStageMask = wait_stage_mask;
+    
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &m_command_buffers[m_next_image_index];
+    
+    submit_info.signalSemaphoreCount = 1;
+    submit_info.pSignalSemaphores = &m_semaphore_render;
+    VK_CHECK(vkQueueSubmit(m_graphics_queue, 1, &submit_info, m_fence));
+
+    VkPresentInfoKHR present_info = {};
+    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    present_info.waitSemaphoreCount = 1;
+    present_info.pWaitSemaphores = &m_semaphore_render;
+    present_info.swapchainCount = 1;
+    present_info.pSwapchains = &m_swapchain;
+    present_info.pImageIndices = &m_next_image_index;
+    
+    VkResult result = vkQueuePresentKHR(m_graphics_queue, &present_info);
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        recreate_swapchain(m_window->width(), m_window->height());
+    } else if (result != VK_SUCCESS) {
+        EXFATAL("Failed to present swapchain image");
+        throw std::runtime_error("Failed to present swapchain image");
     }
 }
 
@@ -246,57 +264,11 @@ ex::vulkan::backend::update(float delta) {
 
 bool
 ex::vulkan::backend::render() {
-    VK_CHECK(vkWaitForFences(m_logical_device,
-                             1,
-                             &m_fence,
-                             VK_TRUE,
-                             UINT64_MAX));
+    m_graphics_pipeline.bind(m_command_buffers[m_next_image_index]);
+    m_graphics_pipeline.update_viewport(m_command_buffers[m_next_image_index], m_swapchain_extent);
+    m_graphics_pipeline.update_scissor(m_command_buffers[m_next_image_index], m_swapchain_extent);
 
-    uint32_t next_image_index = 0;
-    VkResult result = vkAcquireNextImageKHR(m_logical_device,
-                                            m_swapchain,
-                                            UINT64_MAX,
-                                            m_semaphore_present,
-                                            nullptr,
-                                            &next_image_index);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        return false;
-    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-        EXFATAL("Failed to acquire swapchain image");
-        throw std::runtime_error("Failed to acquire swapchain image");
-    }
-
-    VK_CHECK(vkResetFences(m_logical_device, 1, &m_fence));
-    VK_CHECK(vkResetCommandBuffer(m_command_buffers[next_image_index], 0));
-    
-    VkCommandBufferBeginInfo command_buffer_begin_info = {};
-    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    VK_CHECK(vkBeginCommandBuffer(m_command_buffers[next_image_index], &command_buffer_begin_info));
-
-    std::array<VkClearValue, 2> clear_values{};
-    clear_values[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
-    clear_values[1].depthStencil = { 1.0f, 0 };
-    
-    VkRenderPassBeginInfo render_pass_begin_info = {};
-    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    render_pass_begin_info.renderPass = m_render_pass;
-    render_pass_begin_info.framebuffer = m_swapchain_framebuffers[next_image_index];
-    render_pass_begin_info.renderArea.offset = { 0, 0 };
-    render_pass_begin_info.renderArea.extent = m_swapchain_extent;
-    render_pass_begin_info.clearValueCount = static_cast<uint32_t>(clear_values.size());
-    render_pass_begin_info.pClearValues = clear_values.data();
-    
-    vkCmdBeginRenderPass(m_command_buffers[next_image_index],
-                         &render_pass_begin_info,
-                         VK_SUBPASS_CONTENTS_INLINE);
-
-    // GRAPHICS PIPELINE
-    m_graphics_pipeline.bind(m_command_buffers[next_image_index]);
-    m_graphics_pipeline.update_viewport(m_command_buffers[next_image_index], m_swapchain_extent);
-    m_graphics_pipeline.update_scissor(m_command_buffers[next_image_index], m_swapchain_extent);
-
-    vkCmdBindDescriptorSets(m_command_buffers[next_image_index],
+    vkCmdBindDescriptorSets(m_command_buffers[m_next_image_index],
                             VK_PIPELINE_BIND_POINT_GRAPHICS,
                             m_graphics_pipeline.layout(),
                             0,
@@ -305,45 +277,9 @@ ex::vulkan::backend::render() {
                             0,
                             nullptr);
     
-    // MODELS
-    m_dragon.bind(m_command_buffers[next_image_index]);
-    m_dragon.draw(m_command_buffers[next_image_index]);
+    m_dragon.bind(m_command_buffers[m_next_image_index]);
+    m_dragon.draw(m_command_buffers[m_next_image_index]);
     
-    // END RENDER PASS
-    vkCmdEndRenderPass(m_command_buffers[next_image_index]);
-    VK_CHECK(vkEndCommandBuffer(m_command_buffers[next_image_index]));
-
-    VkSubmitInfo submit_info = {};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.waitSemaphoreCount = 1;
-    submit_info.pWaitSemaphores = &m_semaphore_present;
-    
-    VkPipelineStageFlags wait_stage_mask[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    submit_info.pWaitDstStageMask = wait_stage_mask;
-    
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &m_command_buffers[next_image_index];
-    
-    submit_info.signalSemaphoreCount = 1;
-    submit_info.pSignalSemaphores = &m_semaphore_render;
-    VK_CHECK(vkQueueSubmit(m_graphics_queue, 1, &submit_info, m_fence));
-
-    VkPresentInfoKHR present_info = {};
-    present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-    present_info.waitSemaphoreCount = 1;
-    present_info.pWaitSemaphores = &m_semaphore_render;
-    present_info.swapchainCount = 1;
-    present_info.pSwapchains = &m_swapchain;
-    present_info.pImageIndices = &next_image_index;
-    
-    result = vkQueuePresentKHR(m_graphics_queue, &present_info);
-    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        return false;
-    } else if (result != VK_SUCCESS) {
-        EXFATAL("Failed to present swapchain image");
-        throw std::runtime_error("Failed to present swapchain image");
-    }
-
     return true;
 }
 
@@ -1389,44 +1325,25 @@ ex::vulkan::backend::recreate_swapchain(uint32_t width, uint32_t height) {
     if (width == 0 || height == 0) return;
     EXINFO("-+SWAPCHAIN_RECREATED+-");
     EXDEBUG("Width: %d -+- Height: %d", width, height);
-    
+
+    // DESTROY
     vkDeviceWaitIdle(m_logical_device);
 
-    // framebuffers
     for (size_t i = 0; i < m_swapchain_framebuffers.size(); ++i) {
-        vkDestroyFramebuffer(m_logical_device,
-                             m_swapchain_framebuffers[i],
-                             m_allocator);
+        vkDestroyFramebuffer(m_logical_device, m_swapchain_framebuffers[i], m_allocator);
     }
 
-    // depth
-        if (m_depth_image_view) {
-        vkDestroyImageView(m_logical_device,
-                           m_depth_image_view,
-                           m_allocator);
-    }
-        
-    if (m_depth_image) {
-        vkDestroyImage(m_logical_device,
-                       m_depth_image,
-                       m_allocator);
-    }
-
-    if (m_depth_image_memory) {
-        vkFreeMemory(m_logical_device,
-                     m_depth_image_memory,
-                     m_allocator);
+    vkDestroyImageView(m_logical_device, m_depth_image_view, m_allocator);
+    vkDestroyImage(m_logical_device, m_depth_image, m_allocator);
+    vkFreeMemory(m_logical_device,  m_depth_image_memory, m_allocator);
+    
+    for (size_t i = 0; i < m_swapchain_image_views.size(); ++i) {
+        vkDestroyImageView(m_logical_device, m_swapchain_image_views[i], m_allocator);
     }
     
-    // swapchain    
-    for (size_t i = 0; i < m_swapchain_image_views.size(); ++i) {
-        vkDestroyImageView(m_logical_device,
-                           m_swapchain_image_views[i],
-                           m_allocator);
-    }
-
     vkDestroySwapchainKHR(m_logical_device, m_swapchain, m_allocator);
 
+    // RECREATE
     create_swapchain(width, height);
     create_depth_resources();
     create_framebuffers();

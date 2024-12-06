@@ -26,16 +26,16 @@ void main() {
     // out_frag_color = vec4(ambient_light + diffuse_light + specular_light, 1.0);
 
     // NORMAL MAP
-    out_frag_color = vec4(normal, 1.0);
+    //out_frag_color = vec4(normal, 1.0);
 
     // CARTOON
-    // if (pow(max(dot(reflection, camera), 0.0), 5.0) > 0.5) {
-    //     out_frag_color = vec4(1.0);
-    // } else if (dot(-camera, normal) < 0.5) {
-    //     out_frag_color = vec4(in_color / 10, 1.0);        
-    // } else if (max(dot(normal, light), 0.0) >= 0.1) {
-    //     out_frag_color = vec4(in_color, 1.0);
-    // } else {
-    //     out_frag_color = vec4(in_color / 5, 1.0);
-    // }
+    if (pow(max(dot(reflection, camera), 0.0), 5.0) > 0.5) {
+        out_frag_color = vec4(1.0);
+    } else if (dot(-camera, normal) < 0.5) {
+        out_frag_color = vec4(in_color / 10, 1.0);        
+    } else if (max(dot(normal, light), 0.0) >= 0.1) {
+        out_frag_color = vec4(in_color, 1.0);
+    } else {
+        out_frag_color = vec4(in_color / 5, 1.0);
+    }
 }

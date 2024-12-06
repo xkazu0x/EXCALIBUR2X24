@@ -9,7 +9,7 @@
 
 ex::window window;
 ex::input input;
-const auto vulkan_backend = std::make_unique<ex::vulkan::backend>();
+ex::vulkan::backend backend;
 
 void key_presses() {
     if (input.key_pressed(VK_ESCAPE)) {
@@ -25,31 +25,15 @@ int main() {
     window.create("EXCALIBUR", 960, 540, false);
     window.show();
     
-    if (!vulkan_backend->initialize(&window)) {
-        EXFATAL("Failed to initialize vulkan backend");
-        return -1;
-    }
+    if (!backend.initialize(&window)) return -1;
+    backend.create_descriptor_set_layout();
+    backend.create_pipeline();
+    backend.create_texture_image("res/textures/paris.jpg");
+    backend.create_models();
+    backend.create_uniform_buffer();
+    backend.create_descriptor_pool();
+    backend.create_descriptor_set();
 
-    vulkan_backend->create_swapchain(window.width(), window.height());
-    if (!vulkan_backend->create_depth_resources()) return -1;    
-    vulkan_backend->create_render_pass();
-    vulkan_backend->create_framebuffers();
-    vulkan_backend->create_sync_structures();
-    
-    vulkan_backend->create_command_pool();
-    vulkan_backend->allocate_command_buffers();
-    
-    vulkan_backend->create_descriptor_set_layout();
-    vulkan_backend->create_pipeline();
-
-    vulkan_backend->create_texture_image("res/textures/paris.jpg");
-
-    vulkan_backend->create_models();
-    vulkan_backend->create_uniform_buffer();
-
-    vulkan_backend->create_descriptor_pool();
-    vulkan_backend->create_descriptor_set();
-    
     auto last_time = std::chrono::high_resolution_clock::now();
     while (window.is_active()) {
         window.update();
@@ -58,16 +42,16 @@ int main() {
 
         auto now = std::chrono::high_resolution_clock::now();
         float delta = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count() / 1000.0f;
-        vulkan_backend->update(delta);
+        backend.update(delta);
         
-        if (!vulkan_backend->render()) {
-            vulkan_backend->recreate_swapchain(window.width(), window.height());
-        }
-        
+        backend.begin();
+        backend.render();
+        backend.end();
+                
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     
-    vulkan_backend->shutdown();
+    backend.shutdown();
     window.destroy();
     return 0;
 }
