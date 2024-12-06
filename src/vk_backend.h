@@ -4,6 +4,7 @@
 #include "ex_vertex.h"
 #include "ex_model.h"
 
+#include "vk_image.h"
 #include "vk_shader.h"
 #include "vk_pipeline.h"
 #include "vk_buffer.h"
@@ -20,20 +21,20 @@
 #include <memory>
 
 namespace ex::vulkan {
-    struct push_data {
+    struct uniform_data {
         glm::mat4 model;
         glm::mat4 view;
         glm::mat4 projection;
         glm::vec3 light_pos;
     };
-    
+
     class backend {
     public:
         bool initialize(ex::window *window);
         void shutdown();
         void update(float delta);
-        bool render();
         void begin();
+        bool render();
         void end();
         
         void create_descriptor_set_layout();
@@ -98,16 +99,10 @@ namespace ex::vulkan {
         std::vector<VkImageView> m_swapchain_image_views;
         std::vector<VkFramebuffer> m_swapchain_framebuffers;
         uint32_t m_next_image_index;
-        VkRenderPass m_render_pass;
 
-        //std::vector<VkImage> m_depth_images;
-        //std::vector<VkImageView> m_depth_image_views;
-        //std::vector<VkDeviceMemory> m_depth_image_memories;
-
-        VkFormat m_depth_format;
-        VkImage m_depth_image;
-        VkDeviceMemory m_depth_image_memory;
+        ex::vulkan::image m_depth_image;
         VkImageView m_depth_image_view;
+        VkRenderPass m_render_pass;
 
         VkFence m_fence;
         VkSemaphore m_semaphore_present;
@@ -116,15 +111,12 @@ namespace ex::vulkan {
         ex::vulkan::pipeline m_graphics_pipeline;
         uint32_t m_pipeline_subpass;
 
-        VkImage m_texture_image;
-        VkDeviceMemory m_texture_image_memory;
-        VkImageLayout m_texture_image_layout;
+        ex::vulkan::image m_texture_image;
         VkImageView m_texture_image_view;
         VkSampler m_texture_image_sampler;
 
         ex::model m_dragon;
-        
-        ex::vulkan::push_data m_push_data;
+        ex::vulkan::uniform_data m_uniform_data;
         ex::vulkan::buffer m_uniform_buffer;
         
         VkDescriptorSetLayout m_descriptor_set_layout;

@@ -84,31 +84,9 @@ ex::vulkan::backend::shutdown() {
     m_uniform_buffer.destroy(m_logical_device, m_allocator);
     m_dragon.destroy(m_logical_device, m_allocator);
     
-    // texture image ---------
-    if (m_texture_image_sampler) {
-        vkDestroySampler(m_logical_device,
-                         m_texture_image_sampler,
-                         m_allocator);
-    }
-
-    if (m_texture_image_view) {
-        vkDestroyImageView(m_logical_device,
-                           m_texture_image_view,
-                           m_allocator);
-    }
-
-    if (m_texture_image) {
-        vkDestroyImage(m_logical_device,
-                       m_texture_image,
-                       m_allocator);
-    }
-    
-    if (m_texture_image_memory) {
-        vkFreeMemory(m_logical_device,
-                     m_texture_image_memory,
-                     m_allocator);
-    }
-
+    if (m_texture_image_sampler) vkDestroySampler(m_logical_device, m_texture_image_sampler, m_allocator);
+    if (m_texture_image_view) vkDestroyImageView(m_logical_device, m_texture_image_view, m_allocator);
+    m_texture_image.destroy(m_logical_device, m_allocator);
     m_graphics_pipeline.destroy(m_logical_device, m_allocator);
 
     if (!m_command_buffers.empty()) vkFreeCommandBuffers(m_logical_device, m_command_pool, m_command_buffers.size(), m_command_buffers.data());
@@ -124,8 +102,7 @@ ex::vulkan::backend::shutdown() {
     
     if (m_render_pass) vkDestroyRenderPass(m_logical_device, m_render_pass, m_allocator);
     if (m_depth_image_view) vkDestroyImageView(m_logical_device, m_depth_image_view, m_allocator);
-    if (m_depth_image) vkDestroyImage(m_logical_device, m_depth_image, m_allocator);
-    if (m_depth_image_memory) vkFreeMemory(m_logical_device, m_depth_image_memory, m_allocator);
+    m_depth_image.destroy(m_logical_device, m_allocator);
     
     if (!m_swapchain_image_views.empty()) {
         for (uint32_t i = 0; i < m_swapchain_image_views.size(); i++) {
@@ -147,6 +124,37 @@ ex::vulkan::backend::shutdown() {
     if (m_instance) vkDestroyInstance(m_instance, m_allocator);
     m_window = nullptr;
 }
+
+void
+ex::vulkan::backend::update(float delta) {
+    m_uniform_data.model = glm::mat4(1.0f);
+    float scale = 0.25f;
+    m_uniform_data.model = glm::scale(m_uniform_data.model,
+                                   glm::vec3(scale, scale, scale));
+    
+    m_uniform_data.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f),
+                                   glm::vec3(0.0f, 0.0f, 1.0f),
+                                   glm::vec3(0.0f, -1.0f, 0.0f));
+    m_uniform_data.view = glm::rotate(m_uniform_data.view, glm::radians(-20.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    m_uniform_data.view = glm::translate(m_uniform_data.view, glm::vec3(0.0f, -2.2f, 3.0f));
+    m_uniform_data.view = glm::rotate(m_uniform_data.view, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
+    
+    float aspect = m_swapchain_extent.width / (float) m_swapchain_extent.height;
+    m_uniform_data.projection = glm::perspective(glm::radians(80.0f),
+                                              aspect,
+                                              0.01f,
+                                              10.0f);
+    
+    m_uniform_data.light_pos = glm::vec3(0.0f, 3.0f, 6.0f);
+    m_uniform_data.light_pos = glm::rotate(m_uniform_data.light_pos,
+                                        glm::radians(60.0f) * delta,
+                                        glm::vec3(0.0f, 1.0f, 0.0f));
+    
+    m_uniform_buffer.copy_data(m_logical_device,
+                               &m_uniform_data,
+                               sizeof(ex::vulkan::uniform_data));
+}
+
 
 void
 ex::vulkan::backend::begin() {
@@ -195,6 +203,26 @@ ex::vulkan::backend::begin() {
                          VK_SUBPASS_CONTENTS_INLINE);    
 }
 
+bool
+ex::vulkan::backend::render() {
+    m_graphics_pipeline.bind(m_command_buffers[m_next_image_index]);
+    m_graphics_pipeline.update_dynamic(m_command_buffers[m_next_image_index], m_swapchain_extent);
+
+    vkCmdBindDescriptorSets(m_command_buffers[m_next_image_index],
+                            VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            m_graphics_pipeline.layout(),
+                            0,
+                            1,
+                            &m_descriptor_set,
+                            0,
+                            nullptr);
+    
+    m_dragon.bind(m_command_buffers[m_next_image_index]);
+    m_dragon.draw(m_command_buffers[m_next_image_index]);
+    
+    return true;
+}
+
 void
 ex::vulkan::backend::end() {
     vkCmdEndRenderPass(m_command_buffers[m_next_image_index]);
@@ -230,56 +258,6 @@ ex::vulkan::backend::end() {
         EXFATAL("Failed to present swapchain image");
         throw std::runtime_error("Failed to present swapchain image");
     }
-}
-
-void
-ex::vulkan::backend::update(float delta) {
-    m_push_data.model = glm::mat4(1.0f);    
-    float scale = 0.25f;
-    m_push_data.model = glm::scale(m_push_data.model,
-                                   glm::vec3(scale, scale, scale));
-    
-    m_push_data.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f),
-                                   glm::vec3(0.0f, 0.0f, 1.0f),
-                                   glm::vec3(0.0f, -1.0f, 0.0f));
-    m_push_data.view = glm::rotate(m_push_data.view, glm::radians(-20.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    m_push_data.view = glm::translate(m_push_data.view, glm::vec3(0.0f, -2.2f, 3.0f));
-    m_push_data.view = glm::rotate(m_push_data.view, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
-    
-    float aspect = m_swapchain_extent.width / (float) m_swapchain_extent.height;
-    m_push_data.projection = glm::perspective(glm::radians(80.0f),
-                                              aspect,
-                                              0.01f,
-                                              10.0f);
-    
-    m_push_data.light_pos = glm::vec3(0.0f, 3.0f, 6.0f);
-    m_push_data.light_pos = glm::rotate(m_push_data.light_pos,
-                                        glm::radians(60.0f) * delta,
-                                        glm::vec3(0.0f, 1.0f, 0.0f));
-    
-    m_uniform_buffer.copy_data(m_logical_device,
-                               &m_push_data,
-                               sizeof(ex::vulkan::push_data));
-}
-
-bool
-ex::vulkan::backend::render() {
-    m_graphics_pipeline.bind(m_command_buffers[m_next_image_index]);
-    m_graphics_pipeline.update_dynamic(m_command_buffers[m_next_image_index], m_swapchain_extent);
-
-    vkCmdBindDescriptorSets(m_command_buffers[m_next_image_index],
-                            VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            m_graphics_pipeline.layout(),
-                            0,
-                            1,
-                            &m_descriptor_set,
-                            0,
-                            nullptr);
-    
-    m_dragon.bind(m_command_buffers[m_next_image_index]);
-    m_dragon.draw(m_command_buffers[m_next_image_index]);
-    
-    return true;
 }
 
 bool
@@ -689,6 +667,62 @@ ex::vulkan::backend::create_swapchain(uint32_t width, uint32_t height) {
     }
 }
 
+bool
+ex::vulkan::backend::create_depth_resources() {
+    std::vector<VkFormat> formats = {
+        VK_FORMAT_D32_SFLOAT,
+        VK_FORMAT_D32_SFLOAT_S8_UINT,
+        VK_FORMAT_D24_UNORM_S8_UINT,
+    };
+
+    VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
+    VkFormatFeatureFlags feature = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+    // FIND SUPPORTED FORMAT
+    VkFormat format;
+    bool found = false;
+    for (uint32_t i = 0; i < formats.size(); ++i) {
+        VkFormatProperties format_properties;
+        vkGetPhysicalDeviceFormatProperties(m_physical_device,
+                                            formats[i],
+                                            &format_properties);
+        
+        if (tiling == VK_IMAGE_TILING_LINEAR &&
+            (format_properties.linearTilingFeatures & feature) == feature) {
+            //m_depth_format = formats[i];
+            format = formats[i];
+            found = true;
+            break;
+        } else if (tiling == VK_IMAGE_TILING_OPTIMAL &&
+                   (format_properties.optimalTilingFeatures & feature) == feature) {
+            //m_depth_format = formats[i];
+            format = formats[i];
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        EXFATAL("Failed to find supported depth formats");
+        return false;
+    }
+
+    m_depth_image.create(m_logical_device,
+                         m_physical_device,
+                         m_allocator,
+                         VK_IMAGE_TYPE_2D,
+                         format,
+                         m_swapchain_extent,
+                         tiling,
+                         VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                         VK_IMAGE_LAYOUT_UNDEFINED);
+    m_depth_image_view = m_depth_image.create_view(m_logical_device,
+                                                   m_allocator,
+                                                   VK_IMAGE_VIEW_TYPE_2D,
+                                                   VK_IMAGE_ASPECT_DEPTH_BIT);
+    
+    return true;
+}
+
 void
 ex::vulkan::backend::create_render_pass() {
     VkAttachmentDescription color_attachment_description = {};
@@ -704,7 +738,7 @@ ex::vulkan::backend::create_render_pass() {
 
     VkAttachmentDescription depth_attachment_description = {};
     depth_attachment_description.flags = 0;
-    depth_attachment_description.format = m_depth_format;
+    depth_attachment_description.format = m_depth_image.format();
     depth_attachment_description.samples = VK_SAMPLE_COUNT_1_BIT;
     depth_attachment_description.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     depth_attachment_description.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -790,20 +824,6 @@ ex::vulkan::backend::create_framebuffers() {
 }
 
 void
-ex::vulkan::backend::allocate_command_buffers() {
-    m_command_buffers.resize(m_swapchain_images.size());
-    
-    VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
-    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    command_buffer_allocate_info.commandPool = m_command_pool;
-    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    command_buffer_allocate_info.commandBufferCount = static_cast<uint32_t>(m_command_buffers.size());
-    VK_CHECK(vkAllocateCommandBuffers(m_logical_device,
-                                      &command_buffer_allocate_info,
-                                      m_command_buffers.data()));
-}
-
-void
 ex::vulkan::backend::create_sync_structures() {
     VkFenceCreateInfo fence_create_info = {};
     fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -827,6 +847,20 @@ ex::vulkan::backend::create_sync_structures() {
                                &semaphore_create_info,
                                m_allocator,
                                &m_semaphore_render));
+}
+
+void
+ex::vulkan::backend::allocate_command_buffers() {
+    m_command_buffers.resize(m_swapchain_images.size());
+    
+    VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
+    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    command_buffer_allocate_info.commandPool = m_command_pool;
+    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    command_buffer_allocate_info.commandBufferCount = static_cast<uint32_t>(m_command_buffers.size());
+    VK_CHECK(vkAllocateCommandBuffers(m_logical_device,
+                                      &command_buffer_allocate_info,
+                                      m_command_buffers.data()));
 }
 
 void
@@ -881,119 +915,18 @@ ex::vulkan::backend::create_graphics_pipeline() {
     fragment_shader.destroy(m_logical_device, m_allocator);
 }
 
-bool
-ex::vulkan::backend::create_depth_resources() {
-    std::vector<VkFormat> formats = {
-        VK_FORMAT_D32_SFLOAT,
-        VK_FORMAT_D32_SFLOAT_S8_UINT,
-        VK_FORMAT_D24_UNORM_S8_UINT,
-    };
-
-    VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
-    VkFormatFeatureFlags feature = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
-    // find supported format
-    bool found = false;
-    for (uint32_t i = 0; i < formats.size(); ++i) {
-        VkFormatProperties format_properties;
-        vkGetPhysicalDeviceFormatProperties(m_physical_device,
-                                            formats[i],
-                                            &format_properties);
-        
-        if (tiling == VK_IMAGE_TILING_LINEAR &&
-            (format_properties.linearTilingFeatures & feature) == feature) {
-            m_depth_format = formats[i];
-            found = true;
-            break;
-        } else if (tiling == VK_IMAGE_TILING_OPTIMAL &&
-                   (format_properties.optimalTilingFeatures & feature) == feature) {
-            m_depth_format = formats[i];
-            found = true;
-            break;
-        }
-    }
-    if (!found) {
-        EXFATAL("Failed to find supported depth formats");
-        return false;
-    }
-
-    // create image
-    VkImageCreateInfo image_create_info = {};
-    image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    image_create_info.pNext = nullptr;
-    image_create_info.flags = 0;
-    image_create_info.imageType = VK_IMAGE_TYPE_2D;
-    image_create_info.format = m_depth_format;
-    image_create_info.extent.width = static_cast<uint32_t>(m_swapchain_extent.width);
-    image_create_info.extent.height = static_cast<uint32_t>(m_swapchain_extent.height);
-    image_create_info.extent.depth = 1;
-    image_create_info.mipLevels = 1;
-    image_create_info.arrayLayers = 1;
-    image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    image_create_info.tiling = tiling;
-    image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    image_create_info.queueFamilyIndexCount = 0;
-    image_create_info.pQueueFamilyIndices = nullptr;
-    image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    VK_CHECK(vkCreateImage(m_logical_device,
-                           &image_create_info,
-                           m_allocator,
-                           &m_depth_image));
-
-    // allocate image
-    VkMemoryRequirements memory_requirements;
-    vkGetImageMemoryRequirements(m_logical_device,
-                                 m_depth_image,
-                                 &memory_requirements);
-
-    VkPhysicalDeviceMemoryProperties memory_properties;
-    vkGetPhysicalDeviceMemoryProperties(m_physical_device,
-                                        &memory_properties);
-    
-    uint32_t memory_type_index = 0;
-    for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i) {
-        if ((memory_requirements.memoryTypeBits & (1 << 1)) &&
-            (memory_properties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) {
-            memory_type_index = i;
-            break;
-        }
-    }
-    
-    VkMemoryAllocateInfo memory_allocate_info = {};
-    memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    memory_allocate_info.pNext = nullptr;
-    memory_allocate_info.allocationSize = memory_requirements.size;
-    memory_allocate_info.memoryTypeIndex = memory_type_index;
-    VK_CHECK(vkAllocateMemory(m_logical_device,
-                              &memory_allocate_info,
-                              m_allocator,
-                              &m_depth_image_memory));
-
-    vkBindImageMemory(m_logical_device,
-                      m_depth_image,
-                      m_depth_image_memory,
-                      0);
-
-    // create image view
-    m_depth_image_view = create_image_view(m_depth_image,
-                                           VK_IMAGE_VIEW_TYPE_2D,
-                                           m_depth_format,
-                                           VK_IMAGE_ASPECT_DEPTH_BIT);
-    
-    return true;
-}
-
 void
 ex::vulkan::backend::create_texture_image(const char *file) {
     int width, height, channels;
-    stbi_uc *image_data = stbi_load(file, &width, &height, &channels, STBI_rgb_alpha);
-    if (!image_data) {
+    stbi_uc *texture_data = stbi_load(file, &width, &height, &channels, STBI_rgb_alpha);
+    if (!texture_data) {
         throw std::runtime_error("Failed to load texture image");
     }
 
     // COPY IMAGE DATA TO STAGING BUFFER
-    VkDeviceSize image_size = width * height * 4;
+    uint32_t texture_width = static_cast<uint32_t>(width);
+    uint32_t texture_height = static_cast<uint32_t>(height);
+    VkDeviceSize texture_size = sizeof(uint32_t) * texture_width * texture_height;
 
     auto staging_buffer_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     auto staging_buffer_properties =
@@ -1003,174 +936,52 @@ ex::vulkan::backend::create_texture_image(const char *file) {
     staging_buffer.create(m_logical_device,
                           m_physical_device,
                           m_allocator,
-                          image_size,
+                          texture_size,
                           staging_buffer_usage,
                           staging_buffer_properties);
     staging_buffer.copy_data(m_logical_device,
-                             image_data,
-                             image_size);
+                             texture_data,
+                             texture_size);
     
-    stbi_image_free(image_data);
+    stbi_image_free(texture_data);
     
     // CREATE IMAGE
-    VkImageCreateInfo image_create_info = {};
-    image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    image_create_info.pNext = nullptr;
-    image_create_info.flags = 0;
-    image_create_info.imageType = VK_IMAGE_TYPE_2D;
-    //image_create_info.format = VK_FORMAT_R8G8B8A8_SRGB; // TODO: check if format is supported
-    image_create_info.format = VK_FORMAT_R8G8B8A8_UNORM; // TODO: check if format is supported
-    image_create_info.extent.width = static_cast<uint32_t>(width);
-    image_create_info.extent.height = static_cast<uint32_t>(height);
-    image_create_info.extent.depth = 1;
-    image_create_info.mipLevels = 1;
-    image_create_info.arrayLayers = 1;
-    image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-    image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-    image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-    image_create_info.queueFamilyIndexCount = 0;
-    image_create_info.pQueueFamilyIndices = nullptr;
-
-    m_texture_image_layout = VK_IMAGE_LAYOUT_PREINITIALIZED;
-    //image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    image_create_info.initialLayout = m_texture_image_layout;
-    VK_CHECK(vkCreateImage(m_logical_device,
-                           &image_create_info,
+    m_texture_image.create(m_logical_device,
+                           m_physical_device,
                            m_allocator,
-                           &m_texture_image));
+                           VK_IMAGE_TYPE_2D,
+                           VK_FORMAT_R8G8B8A8_UNORM,
+                           { texture_width, texture_height },
+                           VK_IMAGE_TILING_OPTIMAL,
+                           VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                           VK_IMAGE_LAYOUT_PREINITIALIZED);
 
-    // allocate image
-    VkMemoryRequirements memory_requirements;
-    vkGetImageMemoryRequirements(m_logical_device,
-                                 m_texture_image,
-                                 &memory_requirements);
-
-    VkMemoryPropertyFlags properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-    
-    VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
-    vkGetPhysicalDeviceMemoryProperties(m_physical_device, &physical_device_memory_properties);
-    
-    uint32_t memory_type_index = 0;
-    // TODO: check error
-    for (uint32_t i = 0; i < physical_device_memory_properties.memoryTypeCount; ++i) {
-        if ((memory_requirements.memoryTypeBits & (1 << i)) &&
-            (physical_device_memory_properties.memoryTypes[i].propertyFlags & properties) == properties) {
-            memory_type_index = i;
-            break;
-        }
-    }
-    
-    VkMemoryAllocateInfo memory_allocate_info = {};
-    memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    memory_allocate_info.pNext = nullptr;
-    memory_allocate_info.allocationSize = memory_requirements.size;
-    memory_allocate_info.memoryTypeIndex = memory_type_index;
-    VK_CHECK(vkAllocateMemory(m_logical_device,
-                              &memory_allocate_info,
-                              m_allocator,
-                              &m_texture_image_memory));
-
-    vkBindImageMemory(m_logical_device, m_texture_image, m_texture_image_memory, 0);
-
-    // Change layout to TRANSFER_DST
     VkCommandBuffer command_buffer = begin_single_time_commands();
-    
-    VkImageMemoryBarrier image_memory_barrier = {};
-    image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    image_memory_barrier.pNext = nullptr;
-    //image_memory_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
-    //image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    image_memory_barrier.srcAccessMask = 0;
-    image_memory_barrier.dstAccessMask = 0;
-    image_memory_barrier.oldLayout = m_texture_image_layout;
-    image_memory_barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    image_memory_barrier.image = m_texture_image;
-    image_memory_barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    image_memory_barrier.subresourceRange.baseMipLevel = 0;
-    image_memory_barrier.subresourceRange.levelCount = 1;
-    image_memory_barrier.subresourceRange.baseArrayLayer = 0;
-    image_memory_barrier.subresourceRange.layerCount = 1;
-    vkCmdPipelineBarrier(command_buffer,
-                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                         0,
-                         0, nullptr,
-                         0, nullptr,
-                         1, &image_memory_barrier);
-    
+    m_texture_image.change_layout(command_buffer,
+                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                  VK_IMAGE_ASPECT_COLOR_BIT);    
     end_single_time_commands(command_buffer);
 
-    m_texture_image_layout = image_memory_barrier.newLayout;
-    
-    // Copy buffer data to image
     VkCommandBuffer copy_command_buffer = begin_single_time_commands();
-
-    VkBufferImageCopy buffer_image_copy = {};
-    buffer_image_copy.bufferOffset = 0;
-    buffer_image_copy.bufferRowLength = 0;
-    buffer_image_copy.bufferImageHeight = 0;
-    buffer_image_copy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    buffer_image_copy.imageSubresource.mipLevel = 0;
-    buffer_image_copy.imageSubresource.baseArrayLayer = 0;
-    buffer_image_copy.imageSubresource.layerCount = 1;
-    buffer_image_copy.imageOffset = { 0, 0, 0 };
-    buffer_image_copy.imageExtent.width = static_cast<uint32_t>(width);
-    buffer_image_copy.imageExtent.height = static_cast<uint32_t>(height);
-    buffer_image_copy.imageExtent.depth = 1;    
-    vkCmdCopyBufferToImage(copy_command_buffer,
-                           staging_buffer.handle(),
-                           m_texture_image,
-                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                           1,
-                           &buffer_image_copy);
-    
+    m_texture_image.copy_buffer(copy_command_buffer,
+                                staging_buffer.handle(),
+                                VK_IMAGE_ASPECT_COLOR_BIT,
+                                { texture_width, texture_height });
     end_single_time_commands(copy_command_buffer);
 
-    // Change layout to SHADER_READ
     VkCommandBuffer shader_command_buffer = begin_single_time_commands();
-    
-    VkImageMemoryBarrier image_memory_barrier1 = {};
-    image_memory_barrier1.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    image_memory_barrier1.pNext = nullptr;
-    //image_memory_barrier1.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    //image_memory_barrier1.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    image_memory_barrier1.srcAccessMask = 0;
-    image_memory_barrier1.dstAccessMask = 0;
-    image_memory_barrier1.oldLayout = m_texture_image_layout;
-    image_memory_barrier1.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    image_memory_barrier1.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    image_memory_barrier1.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    image_memory_barrier1.image = m_texture_image;
-    image_memory_barrier1.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    image_memory_barrier1.subresourceRange.baseMipLevel = 0;
-    image_memory_barrier1.subresourceRange.levelCount = 1;
-    image_memory_barrier1.subresourceRange.baseArrayLayer = 0;
-    image_memory_barrier1.subresourceRange.layerCount = 1;
-    vkCmdPipelineBarrier(shader_command_buffer,
-                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                         0,
-                         0, nullptr,
-                         0, nullptr,
-                         1, &image_memory_barrier1);
-    
+    m_texture_image.change_layout(shader_command_buffer,
+                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                  VK_IMAGE_ASPECT_COLOR_BIT);
     end_single_time_commands(shader_command_buffer);
 
-    m_texture_image_layout = image_memory_barrier1.newLayout;
-    
-    // Destroy staging buffer
     staging_buffer.destroy(m_logical_device, m_allocator);
-
-    // Create image view
-    m_texture_image_view = create_image_view(m_texture_image,
-                                             VK_IMAGE_VIEW_TYPE_2D,
-                                             VK_FORMAT_R8G8B8A8_UNORM,
-                                             VK_IMAGE_ASPECT_COLOR_BIT);
-
-    // Create sampler
+    m_texture_image_view = m_texture_image.create_view(m_logical_device,
+                                                       m_allocator,
+                                                       VK_IMAGE_VIEW_TYPE_2D,
+                                                       VK_IMAGE_ASPECT_COLOR_BIT);
+    
+    // CREATE SAMPLER
     VkSamplerCreateInfo sampler_create_info = {};
     sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     sampler_create_info.pNext = nullptr;
@@ -1208,7 +1019,7 @@ ex::vulkan::backend::create_models() {
 
 void
 ex::vulkan::backend::create_uniform_buffer() {
-    VkDeviceSize uniform_buffer_size = sizeof(ex::vulkan::push_data);
+    VkDeviceSize uniform_buffer_size = sizeof(ex::vulkan::uniform_data);
 
     auto uniform_buffer_usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     auto uniform_buffer_properties =
@@ -1259,7 +1070,7 @@ ex::vulkan::backend::create_descriptor_set() {
     VkDescriptorBufferInfo descriptor_buffer_info = {};
     descriptor_buffer_info.buffer = m_uniform_buffer.handle();
     descriptor_buffer_info.offset = 0;
-    descriptor_buffer_info.range = sizeof(ex::vulkan::push_data);
+    descriptor_buffer_info.range = sizeof(ex::vulkan::uniform_data);
 
     VkDescriptorImageInfo descriptor_image_info = {};
     descriptor_image_info.sampler = m_texture_image_sampler;
@@ -1310,8 +1121,7 @@ ex::vulkan::backend::recreate_swapchain(uint32_t width, uint32_t height) {
     }
 
     vkDestroyImageView(m_logical_device, m_depth_image_view, m_allocator);
-    vkDestroyImage(m_logical_device, m_depth_image, m_allocator);
-    vkFreeMemory(m_logical_device,  m_depth_image_memory, m_allocator);
+    m_depth_image.destroy(m_logical_device, m_allocator);
     
     for (size_t i = 0; i < m_swapchain_image_views.size(); ++i) {
         vkDestroyImageView(m_logical_device, m_swapchain_image_views[i], m_allocator);
