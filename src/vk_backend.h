@@ -37,7 +37,7 @@ namespace ex::vulkan {
         void end();
         
         void create_descriptor_set_layout();
-        void create_pipeline();
+        void create_graphics_pipeline();
         void create_texture_image(const char *file);
         void create_models();
         void create_uniform_buffer();
@@ -113,7 +113,7 @@ namespace ex::vulkan {
         VkSemaphore m_semaphore_present;
         VkSemaphore m_semaphore_render;
         
-        ex::vulkan::graphics_pipeline m_graphics_pipeline;
+        ex::vulkan::pipeline m_graphics_pipeline;
         uint32_t m_pipeline_subpass;
 
         VkImage m_texture_image;

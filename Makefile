@@ -37,7 +37,7 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 $(BUILD_DIR) $(OBJ_DIR):
 	$(MKDIR) $@
 
-run:
+run: all
 	$(BUILD_DIR)/$(EXEC)
 
 cleanexe:

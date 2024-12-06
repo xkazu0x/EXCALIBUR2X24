@@ -265,8 +265,7 @@ ex::vulkan::backend::update(float delta) {
 bool
 ex::vulkan::backend::render() {
     m_graphics_pipeline.bind(m_command_buffers[m_next_image_index]);
-    m_graphics_pipeline.update_viewport(m_command_buffers[m_next_image_index], m_swapchain_extent);
-    m_graphics_pipeline.update_scissor(m_command_buffers[m_next_image_index], m_swapchain_extent);
+    m_graphics_pipeline.update_dynamic(m_command_buffers[m_next_image_index], m_swapchain_extent);
 
     vkCmdBindDescriptorSets(m_command_buffers[m_next_image_index],
                             VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -858,48 +857,25 @@ ex::vulkan::backend::create_descriptor_set_layout() {
 }
 
 void
-ex::vulkan::backend::create_pipeline() {
+ex::vulkan::backend::create_graphics_pipeline() {
     ex::vulkan::shader vertex_shader;
-    ex::vulkan::shader fragment_shader;
     vertex_shader.load("res/shaders/default.vert.spv");
-    fragment_shader.load("res/shaders/default.frag.spv");
-    EXINFO("Vertex shader size: %d", vertex_shader.size());
-    EXINFO("Fragment shader size: %d", fragment_shader.size());
-    
     vertex_shader.create(m_logical_device, m_allocator);
+    
+    ex::vulkan::shader fragment_shader;   
+    fragment_shader.load("res/shaders/default.frag.spv");
     fragment_shader.create(m_logical_device, m_allocator);
 
-    m_graphics_pipeline.create_shader_stages(vertex_shader.module(),
-                                             fragment_shader.module());
-
-    std::vector<VkVertexInputBindingDescription> vertex_input_binding_descriptions = ex::vertex::get_binding_descriptions();
-    std::vector<VkVertexInputAttributeDescription> vertex_input_attribute_descriptions = ex::vertex::get_attribute_descriptions();
-
-    m_graphics_pipeline.create_vertex_input_state(vertex_input_binding_descriptions,
-                                                  vertex_input_attribute_descriptions);
-    m_graphics_pipeline.create_input_assembly_state(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    m_graphics_pipeline.create_viewport_state(m_swapchain_extent);
-    m_graphics_pipeline.create_rasterization_state(VK_POLYGON_MODE_FILL,
-                                                   VK_CULL_MODE_BACK_BIT,
-                                                   VK_FRONT_FACE_CLOCKWISE);
-    m_graphics_pipeline.create_multisample_state();
-    m_graphics_pipeline.create_depth_stencil_state();
-    m_graphics_pipeline.create_color_blend_attachment_state();
-    m_graphics_pipeline.create_color_blend_state();
-
-    std::vector<VkDynamicState> dynamic_states = {
-        VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_SCISSOR,
-    };
-
-    m_graphics_pipeline.create_dynamic_state(dynamic_states);
-    m_graphics_pipeline.create_layout(m_logical_device,
-                                      m_allocator,
-                                      &m_descriptor_set_layout);
-    m_graphics_pipeline.create(m_logical_device,
-                               m_allocator,
+    m_graphics_pipeline.create(vertex_shader.module(),
+                               fragment_shader.module(),
+                               VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+                               m_swapchain_extent,
+                               VK_POLYGON_MODE_FILL,
+                               &m_descriptor_set_layout,
                                m_render_pass,
-                               m_pipeline_subpass);
+                               m_pipeline_subpass,
+                               m_logical_device,
+                               m_allocator);
 
     vertex_shader.destroy(m_logical_device, m_allocator);
     fragment_shader.destroy(m_logical_device, m_allocator);

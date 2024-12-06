@@ -38,7 +38,7 @@ ex::mesh::create(const char *path) {
             };
             
             m_vertices.push_back(ex::vertex(pos,
-                                            {0.0f, 1.0f, 0.0f},
+                                            {1.0f, 0.0f, 0.0f},
                                             {0.0f, 0.0f},
                                             normal));
             m_indices.push_back(m_indices.size());
