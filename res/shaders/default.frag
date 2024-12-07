@@ -13,11 +13,17 @@ layout (binding = 1) uniform sampler2D sampler_texture;
 void main() {
     //out_frag_color = vec4(in_color, 1.0);
     //out_frag_color = texture(sampler_texture, in_uv);
-
+    
     vec3 normal = normalize(in_normal);
     vec3 light = normalize(in_light_pos);
     vec3 camera = normalize(in_camera_pos);
     vec3 reflection = reflect(light, normal);
+
+    // TEXTURED
+    // vec3 texture_map = vec3(texture(sampler_texture, in_uv));
+    // vec3 ambient_light = 0.1 * texture_map;
+    // vec3 diffuse_light = max(dot(normal, light), 0.0) * texture_map;    
+    // out_frag_color = vec4(ambient_light + diffuse_light, 1.0);
 
     // PHONG
     // vec3 ambient_light = in_color * 0.1;

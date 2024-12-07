@@ -31,14 +31,19 @@ ex::vulkan::pipeline::create(VkShaderModule vertex_module,
     std::vector<VkDynamicState> dynamic_states = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, };    
     VkPipelineDynamicStateCreateInfo dynamic_state_create_info = create_dynamic_state(dynamic_states);
 
+    VkPushConstantRange push_constant_range = {};
+    push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    push_constant_range.offset = 0;
+    push_constant_range.size = sizeof(ex::vulkan::push_data);
+    
     VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
     pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeline_layout_create_info.pNext = nullptr;
     pipeline_layout_create_info.flags = 0;
     pipeline_layout_create_info.setLayoutCount = 1;
     pipeline_layout_create_info.pSetLayouts = descriptor_set_layout;
-    pipeline_layout_create_info.pushConstantRangeCount = 0;
-    pipeline_layout_create_info.pPushConstantRanges = nullptr;
+    pipeline_layout_create_info.pushConstantRangeCount = 1;
+    pipeline_layout_create_info.pPushConstantRanges = &push_constant_range;
     VK_CHECK(vkCreatePipelineLayout(logical_device,
                                     &pipeline_layout_create_info,
                                     allocator,
@@ -80,14 +85,29 @@ ex::vulkan::pipeline::destroy(VkDevice logical_device,
 }
 
 void
-ex::vulkan::pipeline::bind(VkCommandBuffer &command_buffer) {
+ex::vulkan::pipeline::bind(VkCommandBuffer command_buffer,
+                           VkPipelineBindPoint bind_point) {
     vkCmdBindPipeline(command_buffer,
-                      VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      bind_point,
                       m_handle);
 }
 
 void
-ex::vulkan::pipeline::update_dynamic(VkCommandBuffer &command_buffer,
+ex::vulkan::pipeline::bind_descriptor(VkCommandBuffer command_buffer,
+                                      VkPipelineBindPoint bind_point,
+                                      VkDescriptorSet *descriptor_set) {
+    vkCmdBindDescriptorSets(command_buffer,
+                            bind_point,
+                            m_layout,
+                            0,
+                            1,
+                            descriptor_set,
+                            0,
+                            nullptr);
+}
+
+void
+ex::vulkan::pipeline::update_dynamic(VkCommandBuffer command_buffer,
                                      VkExtent2D extent) {
     m_viewport.x = 0.0f;
     m_viewport.y = 0.0f;

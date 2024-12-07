@@ -27,20 +27,20 @@ namespace ex::vulkan {
         glm::mat4 projection;
         glm::vec3 light_pos;
     };
-
+    
     class backend {
     public:
         bool initialize(ex::window *window);
         void shutdown();
         void update(float delta);
         void begin();
-        bool render();
+        void render();
         void end();
         
         void create_descriptor_set_layout();
         void create_graphics_pipeline();
         void create_texture_image(const char *file);
-        void create_models();
+        void create_model(const char *file);
         void create_uniform_buffer();
         void create_descriptor_pool();
         void create_descriptor_set();
@@ -115,7 +115,8 @@ namespace ex::vulkan {
         VkImageView m_texture_image_view;
         VkSampler m_texture_image_sampler;
 
-        ex::model m_dragon;
+        ex::model m_model;
+        
         ex::vulkan::uniform_data m_uniform_data;
         ex::vulkan::buffer m_uniform_buffer;
         

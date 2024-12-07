@@ -4,7 +4,13 @@
 #include <vector>
 #include <array>
 
+#include <glm/glm.hpp>
+
 namespace ex::vulkan {
+    struct push_data {
+        glm::vec3 offset;
+    };
+
     class pipeline {
     public:
         void create(VkShaderModule vertex_module,
@@ -20,8 +26,13 @@ namespace ex::vulkan {
         void destroy(VkDevice logical_device,
                      VkAllocationCallbacks *allocator);
         
-        void bind(VkCommandBuffer &command_buffer);
-        void update_dynamic(VkCommandBuffer &command_buffer, VkExtent2D extent);
+        void bind(VkCommandBuffer command_buffer,
+                  VkPipelineBindPoint bind_point);
+        void bind_descriptor(VkCommandBuffer command_buffer,
+                             VkPipelineBindPoint bind_point,
+                             VkDescriptorSet *descriptor_set);
+        void update_dynamic(VkCommandBuffer command_buffer,
+                            VkExtent2D extent);
         
         VkPipelineLayout layout();
 

@@ -74,19 +74,15 @@ void
 ex::vulkan::backend::shutdown() {
     vkDeviceWaitIdle(m_logical_device);
 
-    vkDestroyDescriptorPool(m_logical_device,
-                            m_descriptor_pool,
-                            m_allocator);
-    vkDestroyDescriptorSetLayout(m_logical_device,
-                                 m_descriptor_set_layout,
-                                 m_allocator);
-    
+    if (m_descriptor_pool) vkDestroyDescriptorPool(m_logical_device, m_descriptor_pool, m_allocator);
+    if (m_descriptor_set_layout) vkDestroyDescriptorSetLayout(m_logical_device, m_descriptor_set_layout, m_allocator);    
     m_uniform_buffer.destroy(m_logical_device, m_allocator);
-    m_dragon.destroy(m_logical_device, m_allocator);
     
+    m_model.destroy(m_logical_device, m_allocator);
     if (m_texture_image_sampler) vkDestroySampler(m_logical_device, m_texture_image_sampler, m_allocator);
     if (m_texture_image_view) vkDestroyImageView(m_logical_device, m_texture_image_view, m_allocator);
     m_texture_image.destroy(m_logical_device, m_allocator);
+    
     m_graphics_pipeline.destroy(m_logical_device, m_allocator);
 
     if (!m_command_buffers.empty()) vkFreeCommandBuffers(m_logical_device, m_command_pool, m_command_buffers.size(), m_command_buffers.data());
@@ -128,27 +124,29 @@ ex::vulkan::backend::shutdown() {
 void
 ex::vulkan::backend::update(float delta) {
     m_uniform_data.model = glm::mat4(1.0f);
-    float scale = 0.25f;
+    m_uniform_data.model = glm::translate(m_uniform_data.model, glm::vec3(0.0f, 0.0f, -1.0f));
+    //m_uniform_data.model = glm::rotate(m_uniform_data.model, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    float scale = 0.2f;
     m_uniform_data.model = glm::scale(m_uniform_data.model,
-                                   glm::vec3(scale, scale, scale));
+                                      glm::vec3(scale, scale, scale));
     
     m_uniform_data.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f),
-                                   glm::vec3(0.0f, 0.0f, 1.0f),
-                                   glm::vec3(0.0f, -1.0f, 0.0f));
+                                      glm::vec3(0.0f, 0.0f, 1.0f),
+                                      glm::vec3(0.0f, -1.0f, 0.0f));
     m_uniform_data.view = glm::rotate(m_uniform_data.view, glm::radians(-20.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    m_uniform_data.view = glm::translate(m_uniform_data.view, glm::vec3(0.0f, -2.2f, 3.0f));
+    m_uniform_data.view = glm::translate(m_uniform_data.view, glm::vec3(0.0f, -1.8f, 3.0f));
     m_uniform_data.view = glm::rotate(m_uniform_data.view, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
     
     float aspect = m_swapchain_extent.width / (float) m_swapchain_extent.height;
     m_uniform_data.projection = glm::perspective(glm::radians(80.0f),
-                                              aspect,
-                                              0.01f,
-                                              10.0f);
+                                                 aspect,
+                                                 0.01f,
+                                                 10.0f);
     
     m_uniform_data.light_pos = glm::vec3(0.0f, 3.0f, 6.0f);
     m_uniform_data.light_pos = glm::rotate(m_uniform_data.light_pos,
-                                        glm::radians(60.0f) * delta,
-                                        glm::vec3(0.0f, 1.0f, 0.0f));
+                                           glm::radians(60.0f) * delta,
+                                           glm::vec3(0.0f, 1.0f, 0.0f));
     
     m_uniform_buffer.copy_data(m_logical_device,
                                &m_uniform_data,
@@ -203,24 +201,29 @@ ex::vulkan::backend::begin() {
                          VK_SUBPASS_CONTENTS_INLINE);    
 }
 
-bool
+void
 ex::vulkan::backend::render() {
-    m_graphics_pipeline.bind(m_command_buffers[m_next_image_index]);
-    m_graphics_pipeline.update_dynamic(m_command_buffers[m_next_image_index], m_swapchain_extent);
+    m_graphics_pipeline.bind(m_command_buffers[m_next_image_index],
+                             VK_PIPELINE_BIND_POINT_GRAPHICS);
+    m_graphics_pipeline.update_dynamic(m_command_buffers[m_next_image_index],
+                                       m_swapchain_extent);
+    m_graphics_pipeline.bind_descriptor(m_command_buffers[m_next_image_index],
+                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        &m_descriptor_set);    
+    m_model.bind(m_command_buffers[m_next_image_index]);
 
-    vkCmdBindDescriptorSets(m_command_buffers[m_next_image_index],
-                            VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            m_graphics_pipeline.layout(),
-                            0,
-                            1,
-                            &m_descriptor_set,
-                            0,
-                            nullptr);
-    
-    m_dragon.bind(m_command_buffers[m_next_image_index]);
-    m_dragon.draw(m_command_buffers[m_next_image_index]);
-    
-    return true;
+    for (uint32_t i = 0; i < 2; i++) {
+        ex::vulkan::push_data push_data = {};
+        push_data.offset = glm::vec3(0.0f, 0.0f, i * 10.0f);
+        vkCmdPushConstants(m_command_buffers[m_next_image_index],
+                           m_graphics_pipeline.layout(),
+                           VK_SHADER_STAGE_VERTEX_BIT,
+                           0,
+                           sizeof(ex::vulkan::push_data),
+                           &push_data);
+        
+        m_model.draw(m_command_buffers[m_next_image_index]);
+    }
 }
 
 void
@@ -899,12 +902,13 @@ ex::vulkan::backend::create_graphics_pipeline() {
     ex::vulkan::shader fragment_shader;   
     fragment_shader.load("res/shaders/default.frag.spv");
     fragment_shader.create(m_logical_device, m_allocator);
-
+    
     m_graphics_pipeline.create(vertex_shader.module(),
                                fragment_shader.module(),
                                VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
                                m_swapchain_extent,
                                VK_POLYGON_MODE_FILL,
+                               //VK_POLYGON_MODE_LINE,
                                &m_descriptor_set_layout,
                                m_render_pass,
                                m_pipeline_subpass,
@@ -1008,13 +1012,13 @@ ex::vulkan::backend::create_texture_image(const char *file) {
 }
 
 void
-ex::vulkan::backend::create_models() {
-    m_dragon.load("res/meshes/dragon.obj");
-    m_dragon.create(m_logical_device,
-                    m_physical_device,
-                    m_allocator,
-                    m_command_pool,
-                    m_graphics_queue);
+ex::vulkan::backend::create_model(const char *file) {
+    m_model.load(file);
+    m_model.create(m_logical_device,
+                   m_physical_device,
+                   m_allocator,
+                   m_command_pool,
+                   m_graphics_queue);
 }
 
 void

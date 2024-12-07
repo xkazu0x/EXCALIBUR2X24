@@ -19,8 +19,10 @@ int main() {
     if (!backend.initialize(&window)) return -1;
     backend.create_descriptor_set_layout();
     backend.create_graphics_pipeline();
+    
     backend.create_texture_image("res/textures/paris.jpg");
-    backend.create_models();
+    backend.create_model("res/meshes/dragon.obj");
+    
     backend.create_uniform_buffer();
     backend.create_descriptor_pool();
     backend.create_descriptor_set();
