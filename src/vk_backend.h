@@ -113,7 +113,6 @@ namespace ex::vulkan {
         uint32_t m_next_image_index;
 
         ex::vulkan::image m_depth_image;
-        VkImageView m_depth_image_view;
         VkRenderPass m_render_pass;
 
         VkFence m_fence;

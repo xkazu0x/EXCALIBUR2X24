@@ -24,22 +24,27 @@ namespace ex::vulkan {
                          VkImageAspectFlags aspect_mask,
                          VkExtent2D extent);
 
-        VkImageView create_view(VkDevice logical_device,
-                                VkAllocationCallbacks *allocator,
-                                VkImageViewType view_type,
-                                VkImageAspectFlags aspect_flags);
+        void create_view(VkDevice logical_device,
+                         VkAllocationCallbacks *allocator,
+                         VkImageViewType view_type,
+                         VkImageAspectFlags aspect_flags);
 
         VkImage handle() {
             return m_handle;
         }
 
+        VkImageView view() {
+            return m_view;
+        }
+        
         VkFormat format() {
             return m_format;
-        }
+        }        
         
     private:
         VkImage m_handle;
         VkDeviceMemory m_memory;
+        VkImageView m_view;
         VkFormat m_format;
         VkImageLayout m_layout;
     };

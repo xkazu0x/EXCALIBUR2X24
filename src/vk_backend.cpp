@@ -92,7 +92,6 @@ ex::vulkan::backend::shutdown() {
     }
     
     if (m_render_pass) vkDestroyRenderPass(m_logical_device, m_render_pass, m_allocator);
-    if (m_depth_image_view) vkDestroyImageView(m_logical_device, m_depth_image_view, m_allocator);
     m_depth_image.destroy(m_logical_device, m_allocator);
     
     if (!m_swapchain_image_views.empty()) {
@@ -151,6 +150,8 @@ ex::vulkan::backend::update(float delta) {
 
 void
 ex::vulkan::backend::begin_render() {
+    if (m_window->width() == 0 || m_window->height() == 0) return;
+    
     VK_CHECK(vkWaitForFences(m_logical_device,
                              1,
                              &m_fence,
@@ -198,6 +199,8 @@ ex::vulkan::backend::begin_render() {
 
 void
 ex::vulkan::backend::end_render() {
+    if (m_window->width() == 0 || m_window->height() == 0) return;
+    
     vkCmdEndRenderPass(m_command_buffers[m_next_image_index]);
     VK_CHECK(vkEndCommandBuffer(m_command_buffers[m_next_image_index]));
 
@@ -699,10 +702,10 @@ ex::vulkan::backend::create_depth_resources() {
                          tiling,
                          VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                          VK_IMAGE_LAYOUT_UNDEFINED);
-    m_depth_image_view = m_depth_image.create_view(m_logical_device,
-                                                   m_allocator,
-                                                   VK_IMAGE_VIEW_TYPE_2D,
-                                                   VK_IMAGE_ASPECT_DEPTH_BIT);
+    m_depth_image.create_view(m_logical_device,
+                              m_allocator,
+                              VK_IMAGE_VIEW_TYPE_2D,
+                              VK_IMAGE_ASPECT_DEPTH_BIT);
     
     return true;
 }
@@ -787,7 +790,7 @@ ex::vulkan::backend::create_framebuffers() {
     for (uint32_t i = 0; i < m_swapchain_images.size(); i++) {
         std::array<VkImageView, 2> attachments = {
             m_swapchain_image_views[i],
-            m_depth_image_view,
+            m_depth_image.view(),
         };
         
         VkFramebufferCreateInfo framebuffer_create_info = {};
@@ -979,10 +982,10 @@ ex::vulkan::backend::create_texture(const char *file) {
     end_single_time_commands(shader_command_buffer);
 
     staging_buffer.destroy(m_logical_device, m_allocator);
-    out_texture.image_view = out_texture.image.create_view(m_logical_device,
-                                                           m_allocator,
-                                                           VK_IMAGE_VIEW_TYPE_2D,
-                                                           VK_IMAGE_ASPECT_COLOR_BIT);
+    out_texture.image.create_view(m_logical_device,
+                                  m_allocator,
+                                  VK_IMAGE_VIEW_TYPE_2D,
+                                  VK_IMAGE_ASPECT_COLOR_BIT);
     
     // CREATE SAMPLER
     VkSamplerCreateInfo sampler_create_info = {};
@@ -1016,7 +1019,6 @@ void
 ex::vulkan::backend::destroy_texture(ex::texture *texture) {
     vkDeviceWaitIdle(m_logical_device);
     if (texture->sampler) vkDestroySampler(m_logical_device, texture->sampler, m_allocator);
-    if (texture->image_view) vkDestroyImageView(m_logical_device, texture->image_view, m_allocator);
     texture->image.destroy(m_logical_device, m_allocator);
 }
 
@@ -1143,7 +1145,6 @@ ex::vulkan::backend::recreate_swapchain(uint32_t width, uint32_t height) {
         vkDestroyFramebuffer(m_logical_device, m_swapchain_framebuffers[i], m_allocator);
     }
 
-    vkDestroyImageView(m_logical_device, m_depth_image_view, m_allocator);
     m_depth_image.destroy(m_logical_device, m_allocator);
     
     for (size_t i = 0; i < m_swapchain_image_views.size(); ++i) {

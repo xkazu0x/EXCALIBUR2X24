@@ -73,6 +73,7 @@ void
 ex::vulkan::image::destroy(VkDevice logical_device, VkAllocationCallbacks *allocator) {
     if (m_handle) vkDestroyImage(logical_device, m_handle, allocator);
     if (m_memory) vkFreeMemory(logical_device, m_memory, allocator);
+    if (m_view) vkDestroyImageView(logical_device, m_view, allocator);
 }
 
 void
@@ -132,7 +133,7 @@ ex::vulkan::image::copy_buffer(VkCommandBuffer command_buffer,
                            &buffer_image_copy);
 }
 
-VkImageView
+void
 ex::vulkan::image::create_view(VkDevice logical_device,
                                VkAllocationCallbacks *allocator,
                                VkImageViewType view_type,
@@ -153,12 +154,8 @@ ex::vulkan::image::create_view(VkDevice logical_device,
     image_view_create_info.subresourceRange.levelCount = 1;
     image_view_create_info.subresourceRange.baseArrayLayer = 0;
     image_view_create_info.subresourceRange.layerCount = 1;
-
-    VkImageView out_image_view;
     VK_CHECK(vkCreateImageView(logical_device,
                                &image_view_create_info,
                                allocator,
-                               &out_image_view));
-    
-    return out_image_view;
+                               &m_view));
 }

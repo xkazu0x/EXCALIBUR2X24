@@ -39,34 +39,6 @@ int main() {
     auto last_time = std::chrono::high_resolution_clock::now();
     while (window.is_active()) {
         window.update();
-        
-        auto now = std::chrono::high_resolution_clock::now();
-        float delta = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count() / 1000.0f;
-        backend.update(delta);
-        
-        backend.begin_render();
-        backend.bind_pipeline();
-        
-        ex::vulkan::push_data push_data = {};
-        push_data.transform = glm::translate(glm::mat4(1.0f), glm::vec3(-1.5f, 0.0f, 0.0f));
-        push_data.transform = glm::rotate(push_data.transform, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
-        push_data.transform = glm::scale(push_data.transform, glm::vec3(0.2f));
-        backend.push_constant_data(&push_data);
-        backend.draw_model(&dragon);
-
-        if (input.key_down(EX_KEY_LEFT)) x -= speed;
-        if (input.key_down(EX_KEY_RIGHT)) x += speed;
-        if (input.key_down(EX_KEY_UP)) z += speed;
-        if (input.key_down(EX_KEY_DOWN)) z -= speed;
-
-        push_data.transform = glm::translate(glm::mat4(1.0f), glm::vec3(1.5f + x, 1.0f, 0.0f + z));
-        push_data.transform = glm::rotate(push_data.transform, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        push_data.transform = glm::rotate(push_data.transform, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
-        push_data.transform = glm::scale(push_data.transform, glm::vec3(0.8f));
-        backend.push_constant_data(&push_data);
-        backend.draw_model(&monkey);
-        
-        backend.end_render();
 
         if (input.button_pressed(EX_BUTTON_LEFT)) EXDEBUG("MOUSE LEFT BUTTON PRESSED");
         if (input.button_pressed(EX_BUTTON_RIGHT)) EXDEBUG("MOUSE RIGHT BUTTON PRESSED");
@@ -74,8 +46,37 @@ int main() {
         
         if (input.key_pressed(EX_KEY_ESCAPE)) window.close();
         if (input.key_pressed(EX_KEY_F1)) window.change_display_mode();
-
+        
         input.update();
+        
+        auto now = std::chrono::high_resolution_clock::now();
+        float delta = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count() / 1000.0f;
+        backend.update(delta);
+
+        backend.begin_render();
+        if (!window.is_minimized()) {
+            backend.bind_pipeline();
+        
+            ex::vulkan::push_data push_data = {};
+            push_data.transform = glm::translate(glm::mat4(1.0f), glm::vec3(-1.5f, 0.0f, 0.0f));
+            push_data.transform = glm::rotate(push_data.transform, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
+            push_data.transform = glm::scale(push_data.transform, glm::vec3(0.2f));
+            backend.push_constant_data(&push_data);
+            backend.draw_model(&dragon);
+
+            if (input.key_down(EX_KEY_LEFT)) x -= speed;
+            if (input.key_down(EX_KEY_RIGHT)) x += speed;
+            if (input.key_down(EX_KEY_UP)) z += speed;
+            if (input.key_down(EX_KEY_DOWN)) z -= speed;
+
+            push_data.transform = glm::translate(glm::mat4(1.0f), glm::vec3(1.5f + x, 1.0f, 0.0f + z));
+            push_data.transform = glm::rotate(push_data.transform, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+            push_data.transform = glm::rotate(push_data.transform, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
+            push_data.transform = glm::scale(push_data.transform, glm::vec3(0.8f));
+            backend.push_constant_data(&push_data);
+            backend.draw_model(&monkey);
+        }
+        backend.end_render();
         
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }

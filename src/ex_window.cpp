@@ -88,6 +88,14 @@ ex::window::update() {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
+
+    WINDOWPLACEMENT wp;
+    GetWindowPlacement(m_handle, &wp);
+    if (wp.showCmd == SW_SHOWMINIMIZED) {
+        m_minimized = true;
+    } else {
+        m_minimized = false;
+    }
 }
 
 void
@@ -105,6 +113,11 @@ ex::window::close() {
 bool
 ex::window::is_active() {
     return m_state == EX_WINDOW_STATE_ACTIVE;
+}
+
+bool
+ex::window::is_minimized() {
+    return m_minimized;
 }
 
 uint32_t
