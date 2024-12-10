@@ -3,7 +3,7 @@
 #include "ex_mesh.h"
 #include "vk_buffer.h"
 
-namespace ex {
+namespace ex::vulkan {
     class model {
     public:
         void load(const char *file);

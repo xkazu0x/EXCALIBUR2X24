@@ -39,7 +39,7 @@ namespace ex {
         LRESULT process_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 
     private:
-        struct info {
+        struct window_info {
             std::string title;
             uint32_t current_width;
             uint32_t current_height;
@@ -52,7 +52,7 @@ namespace ex {
             bool fullscreen;
         };
         
-        enum state {
+        enum window_state {
             EX_WINDOW_STATE_HIDDEN = 0x00,
             EX_WINDOW_STATE_ACTIVE = 0x01,
             EX_WINDOW_STATE_CLOSED = 0x02,
@@ -65,8 +65,8 @@ namespace ex {
         ATOM m_atom;
         HWND m_handle;
 
-        info m_info;
-        uint32_t m_state;
+        window_info m_info;
+        window_state m_state;
         bool m_minimized;
     };
 }

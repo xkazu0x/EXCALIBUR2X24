@@ -16,7 +16,6 @@ layout (push_constant) uniform Push {
 } push;
 
 layout (binding = 0) uniform UBO {
-    mat4 model;
     mat4 view;
     mat4 projection;
     vec3 light_pos;

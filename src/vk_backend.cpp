@@ -116,39 +116,6 @@ ex::vulkan::backend::shutdown() {
 }
 
 void
-ex::vulkan::backend::update(float delta) {
-    m_uniform_data.model = glm::mat4(1.0f);
-    m_uniform_data.model = glm::translate(m_uniform_data.model, glm::vec3(0.0f, 0.0f, -1.0f));
-    //m_uniform_data.model = glm::rotate(m_uniform_data.model, glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    float scale = 0.2f;
-    m_uniform_data.model = glm::scale(m_uniform_data.model,
-                                      glm::vec3(scale, scale, scale));
-    
-    m_uniform_data.view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f),
-                                      glm::vec3(0.0f, 0.0f, 1.0f),
-                                      glm::vec3(0.0f, -1.0f, 0.0f));
-    m_uniform_data.view = glm::rotate(m_uniform_data.view, glm::radians(-20.0f), glm::vec3(1.0f, 0.0f, 0.0f));
-    m_uniform_data.view = glm::translate(m_uniform_data.view, glm::vec3(0.0f, -1.8f, 3.0f));
-    //m_uniform_data.view = glm::rotate(m_uniform_data.view, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
-    
-    float aspect = m_swapchain_extent.width / (float) m_swapchain_extent.height;
-    m_uniform_data.projection = glm::perspective(glm::radians(80.0f),
-                                                 aspect,
-                                                 0.01f,
-                                                 10.0f);
-    
-    m_uniform_data.light_pos = glm::vec3(0.0f, 3.0f, 6.0f);
-    m_uniform_data.light_pos = glm::rotate(m_uniform_data.light_pos,
-                                           glm::radians(60.0f) * delta,
-                                           glm::vec3(0.0f, 1.0f, 0.0f));
-    
-    m_uniform_buffer.copy_data(m_logical_device,
-                               &m_uniform_data,
-                               sizeof(ex::vulkan::uniform_data));
-}
-
-
-void
 ex::vulkan::backend::begin_render() {
     if (m_window->width() == 0 || m_window->height() == 0) return;
     
@@ -234,17 +201,6 @@ ex::vulkan::backend::end_render() {
         EXFATAL("Failed to present swapchain image");
         throw std::runtime_error("Failed to present swapchain image");
     }
-}
-
-void
-ex::vulkan::backend::bind_pipeline() {
-    m_graphics_pipeline.bind(m_command_buffers[m_next_image_index],
-                             VK_PIPELINE_BIND_POINT_GRAPHICS);
-    m_graphics_pipeline.update_dynamic(m_command_buffers[m_next_image_index],
-                                       m_swapchain_extent);
-    m_graphics_pipeline.bind_descriptor(m_command_buffers[m_next_image_index],
-                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        &m_descriptor_set);    
 }
 
 bool
@@ -909,6 +865,18 @@ ex::vulkan::backend::create_graphics_pipeline() {
     fragment_shader.destroy(m_logical_device, m_allocator);
 }
 
+
+void
+ex::vulkan::backend::bind_pipeline() {
+    m_graphics_pipeline.bind(m_command_buffers[m_next_image_index],
+                             VK_PIPELINE_BIND_POINT_GRAPHICS);
+    m_graphics_pipeline.update_dynamic(m_command_buffers[m_next_image_index],
+                                       m_swapchain_extent);
+    m_graphics_pipeline.bind_descriptor(m_command_buffers[m_next_image_index],
+                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        &m_descriptor_set);    
+}
+
 void
 ex::vulkan::backend::push_constant_data(ex::vulkan::push_data *push_data) {
     vkCmdPushConstants(m_command_buffers[m_next_image_index],
@@ -919,9 +887,14 @@ ex::vulkan::backend::push_constant_data(ex::vulkan::push_data *push_data) {
                        push_data);
 }
 
-ex::texture
+void
+ex::vulkan::backend::update_uniform_data(ex::vulkan::uniform_data *uniform_data) {
+    m_uniform_buffer.copy_data(m_logical_device, uniform_data, sizeof(ex::vulkan::uniform_data));
+}
+
+ex::vulkan::texture
 ex::vulkan::backend::create_texture(const char *file) {
-    ex::texture out_texture = {};
+    ex::vulkan::texture out_texture = {};
     
     int width, height, channels;
     stbi_uc *texture_data = stbi_load(file, &width, &height, &channels, STBI_rgb_alpha);
@@ -1016,15 +989,15 @@ ex::vulkan::backend::create_texture(const char *file) {
 }
 
 void
-ex::vulkan::backend::destroy_texture(ex::texture *texture) {
+ex::vulkan::backend::destroy_texture(ex::vulkan::texture *texture) {
     vkDeviceWaitIdle(m_logical_device);
     if (texture->sampler) vkDestroySampler(m_logical_device, texture->sampler, m_allocator);
     texture->image.destroy(m_logical_device, m_allocator);
 }
 
-ex::model
+ex::vulkan::model
 ex::vulkan::backend::create_model(const char *file) {
-    ex::model out_model = {};
+    ex::vulkan::model out_model = {};
     out_model.load(file);
     out_model.create(m_logical_device,
                      m_physical_device,
@@ -1036,13 +1009,13 @@ ex::vulkan::backend::create_model(const char *file) {
 }
 
 void
-ex::vulkan::backend::destroy_model(ex::model *model) {
+ex::vulkan::backend::destroy_model(ex::vulkan::model *model) {
     vkDeviceWaitIdle(m_logical_device);
     model->destroy(m_logical_device, m_allocator);
 }
 
 void
-ex::vulkan::backend::draw_model(ex::model *model) {
+ex::vulkan::backend::draw_model(ex::vulkan::model *model) {
     model->bind(m_command_buffers[m_next_image_index]);
     model->draw(m_command_buffers[m_next_image_index]);
 }
@@ -1130,6 +1103,11 @@ ex::vulkan::backend::create_descriptor_set(VkDescriptorImageInfo *descriptor_ima
                            write_descriptor_sets.data(),
                            0,
                            nullptr);
+}
+
+float
+ex::vulkan::backend::get_swapchain_aspect_ratio() {
+    return (float) m_swapchain_extent.width / (float) m_swapchain_extent.height;
 }
 
 void

@@ -1,7 +1,7 @@
-#include "ex_texture.h"
+#include "vk_texture.h"
 
 VkDescriptorImageInfo
-ex::texture::get_descriptor_info() {
+ex::vulkan::texture::get_descriptor_info() {
     VkDescriptorImageInfo out_descriptor_image_info = {};
     out_descriptor_image_info.sampler = sampler;
     out_descriptor_image_info.imageView = image.view();

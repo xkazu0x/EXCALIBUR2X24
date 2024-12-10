@@ -44,7 +44,7 @@ ex::input::process_mouse_move(int16_t x, int16_t y) {
 }
 
 void
-ex::input::process_mouse_wheel(int8_t z_delta) {
+ex::input::process_mouse_wheel(int8_t /*z_delta*/) {
 }
 
 bool

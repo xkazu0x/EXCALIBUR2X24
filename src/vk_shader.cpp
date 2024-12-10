@@ -32,14 +32,10 @@ ex::vulkan::shader::destroy(VkDevice logical_device,
 }
 
 VkShaderModule
-ex::vulkan::shader::module() {
-    return m_module;
-}
+ex::vulkan::shader::module() { return m_module; }
 
 uint32_t
-ex::vulkan::shader::size() {
-    return m_code.size();
-}
+ex::vulkan::shader::size() { return m_code.size(); }
 
 std::vector<char>
 ex::vulkan::shader::read_file(const char *file_name) {

@@ -3,7 +3,7 @@
 #include "vk_image.h"
 #include <vulkan/vulkan.h>
 
-namespace ex {
+namespace ex::vulkan {
     struct texture {
         ex::vulkan::image image;
         VkSampler sampler;

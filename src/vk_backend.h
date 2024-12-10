@@ -2,10 +2,11 @@
 
 #include "ex_window.h"
 #include "ex_vertex.h"
-#include "ex_texture.h"
-#include "ex_model.h"
 
 #include "vk_image.h"
+#include "vk_texture.h"
+#include "vk_model.h"
+
 #include "vk_shader.h"
 #include "vk_pipeline.h"
 #include "vk_buffer.h"
@@ -27,7 +28,6 @@ namespace ex::vulkan {
     };
     
     struct uniform_data {
-        glm::mat4 model;
         glm::mat4 view;
         glm::mat4 projection;
         glm::vec3 light_pos;
@@ -37,25 +37,27 @@ namespace ex::vulkan {
     public:
         bool initialize(ex::window *window);
         void shutdown();
-        void update(float delta);
         void begin_render();
         void end_render();
-        void bind_pipeline();
-
-        void push_constant_data(ex::vulkan::push_data *push_data);
-
-        ex::texture create_texture(const char *file);
-        void destroy_texture(ex::texture *texture);
         
-        ex::model create_model(const char *file);
-        void destroy_model(ex::model *model);
-        void draw_model(ex::model *model);
+        void bind_pipeline();
+        void push_constant_data(ex::vulkan::push_data *push_data);
+        void update_uniform_data(ex::vulkan::uniform_data *uniform_data);
+
+        ex::vulkan::texture create_texture(const char *file);
+        void destroy_texture(ex::vulkan::texture *texture);
+        
+        ex::vulkan::model create_model(const char *file);
+        void destroy_model(ex::vulkan::model *model);
+        void draw_model(ex::vulkan::model *model);
         
         void create_descriptor_set_layout();
         void create_graphics_pipeline();
         void create_uniform_buffer();
         void create_descriptor_pool();
         void create_descriptor_set(VkDescriptorImageInfo *descriptor_image_info);
+
+        float get_swapchain_aspect_ratio();
         
     private:
         bool create_instance();
@@ -123,7 +125,6 @@ namespace ex::vulkan {
         ex::vulkan::pipeline m_graphics_pipeline;
         uint32_t m_pipeline_subpass;
         
-        ex::vulkan::uniform_data m_uniform_data;
         ex::vulkan::buffer m_uniform_buffer;
         
         VkDescriptorSetLayout m_descriptor_set_layout;

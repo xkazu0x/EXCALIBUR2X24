@@ -159,3 +159,12 @@ ex::vulkan::image::create_view(VkDevice logical_device,
                                allocator,
                                &m_view));
 }
+
+VkImage
+ex::vulkan::image::handle() { return m_handle; }
+
+VkImageView
+ex::vulkan::image::view() { return m_view; }
+
+VkFormat
+ex::vulkan::image::format() { return m_format; }

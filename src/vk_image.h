@@ -23,23 +23,14 @@ namespace ex::vulkan {
                          VkBuffer src_buffer,
                          VkImageAspectFlags aspect_mask,
                          VkExtent2D extent);
-
         void create_view(VkDevice logical_device,
                          VkAllocationCallbacks *allocator,
                          VkImageViewType view_type,
                          VkImageAspectFlags aspect_flags);
 
-        VkImage handle() {
-            return m_handle;
-        }
-
-        VkImageView view() {
-            return m_view;
-        }
-        
-        VkFormat format() {
-            return m_format;
-        }        
+        VkImage handle();
+        VkImageView view();
+        VkFormat format();
         
     private:
         VkImage m_handle;
