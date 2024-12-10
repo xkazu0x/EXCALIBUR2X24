@@ -1,8 +1,11 @@
 #pragma once
 
-#define NOMINMAX
+#include "ex_input.h"
+
+//#define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <windowsx.h>
 #include <vulkan/vulkan.h>
 #include <vulkan/vulkan_win32.h>
 
@@ -31,7 +34,7 @@ namespace ex {
     
     class window {
     public:
-        void create(std::string title, uint32_t width, uint32_t height, bool fullscreen);
+        void create(ex::input *input, std::string title, uint32_t width, uint32_t height, bool fullscreen);
         void destroy();
         void update();
         
@@ -54,9 +57,11 @@ namespace ex {
         LRESULT process_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
         
     private:
-        HINSTANCE m_instance { };
-        ATOM m_atom { };
-        HWND m_handle { };
+        ex::input *m_input;
+        
+        HINSTANCE m_instance;
+        ATOM m_atom;
+        HWND m_handle;
 
         window_info m_info;
         window_state m_state;

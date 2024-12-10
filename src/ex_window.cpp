@@ -1,7 +1,8 @@
 #include "ex_window.h"
 
 void
-ex::window::create(std::string title, uint32_t width, uint32_t height, bool fullscreen) {
+ex::window::create(ex::input *input, std::string title, uint32_t width, uint32_t height, bool fullscreen) {
+    m_input = input;
     m_info.title = title;
     
     m_instance = GetModuleHandle(nullptr);
@@ -222,6 +223,51 @@ ex::window::process_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     case WM_SIZE: {        
         m_info.current_width = LOWORD(lparam);
         m_info.current_height = HIWORD(lparam);
+    } break;
+    case WM_KEYDOWN:
+    case WM_SYSKEYDOWN:
+    case WM_KEYUP:
+    case WM_SYSKEYUP: {
+        bool pressed = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
+        uint32_t key_code = wparam;
+        m_input->process_key(key_code, pressed);
+    } break;
+    case WM_MOUSEMOVE: {
+        int32_t x = GET_X_LPARAM(lparam);
+        int32_t y = GET_Y_LPARAM(lparam);
+        m_input->process_mouse_move(x, y);
+    } break;
+    case WM_MOUSEWHEEL: {
+        int32_t z_delta = GET_WHEEL_DELTA_WPARAM(wparam);
+        if (z_delta != 0) {
+            z_delta= (z_delta < 0) ? -1 : 1;
+            m_input->process_mouse_wheel(z_delta);
+        }
+    } break;
+    case WM_LBUTTONDOWN:
+    case WM_RBUTTONDOWN:
+    case WM_MBUTTONDOWN:
+    case WM_LBUTTONUP:
+    case WM_RBUTTONUP:
+    case WM_MBUTTONUP: {
+        bool pressed = msg == WM_LBUTTONDOWN || msg == WM_RBUTTONDOWN || msg == WM_MBUTTONDOWN;
+        uint32_t mouse_button = EX_BUTTON_MAX_COUNT;
+        switch(msg) {
+        case WM_LBUTTONDOWN:
+        case WM_LBUTTONUP: {
+            mouse_button = EX_BUTTON_LEFT;
+        } break;
+        case WM_RBUTTONDOWN:
+        case WM_RBUTTONUP: {
+            mouse_button = EX_BUTTON_RIGHT;
+        } break;
+        case WM_MBUTTONDOWN:
+        case WM_MBUTTONUP: {
+            mouse_button = EX_BUTTON_MIDDLE;
+        } break;
+        }
+
+        m_input->process_button(mouse_button, pressed);
     } break;
     }
 
