@@ -28,7 +28,7 @@ void main() {
     
     out_color = in_color;
     out_uv = in_uv;
-    out_normal = mat3(ubo.view) * mat3(ubo.model) * in_normal;
+    out_normal = mat3(ubo.view) * mat3(push.transform) * in_normal;
     out_camera_pos = (ubo.view * world_pos).xyz;
     out_light_pos = mat3(ubo.view) * (ubo.light_pos - vec3(world_pos));
 }
