@@ -2,6 +2,7 @@
 
 #include "ex_window.h"
 #include "ex_vertex.h"
+#include "ex_texture.h"
 #include "ex_model.h"
 
 #include "vk_image.h"
@@ -21,6 +22,10 @@
 #include <memory>
 
 namespace ex::vulkan {
+    struct push_data {
+        glm::mat4 transform;
+    };
+    
     struct uniform_data {
         glm::mat4 model;
         glm::mat4 view;
@@ -33,17 +38,24 @@ namespace ex::vulkan {
         bool initialize(ex::window *window);
         void shutdown();
         void update(float delta);
-        void begin();
-        void render();
-        void end();
+        void begin_render();
+        void end_render();
+        void bind_pipeline();
+
+        void push_constant_data(ex::vulkan::push_data *push_data);
+
+        ex::texture create_texture(const char *file);
+        void destroy_texture(ex::texture *texture);
+        
+        ex::model create_model(const char *file);
+        void destroy_model(ex::model *model);
+        void draw_model(ex::model *model);
         
         void create_descriptor_set_layout();
         void create_graphics_pipeline();
-        void create_texture_image(const char *file);
-        void create_model(const char *file);
         void create_uniform_buffer();
         void create_descriptor_pool();
-        void create_descriptor_set();
+        void create_descriptor_set(VkDescriptorImageInfo *descriptor_image_info);
         
     private:
         bool create_instance();
@@ -86,7 +98,7 @@ namespace ex::vulkan {
 
         VkCommandPool m_command_pool;
         std::vector<VkCommandBuffer> m_command_buffers;
-
+        
         VkSurfaceCapabilitiesKHR m_swapchain_capabilities;
         std::vector<VkSurfaceFormatKHR> m_swapchain_formats;
         std::vector<VkPresentModeKHR> m_swapchain_present_modes;
@@ -107,15 +119,10 @@ namespace ex::vulkan {
         VkFence m_fence;
         VkSemaphore m_semaphore_present;
         VkSemaphore m_semaphore_render;
-        
+
+        // TODO: take this block outta here --
         ex::vulkan::pipeline m_graphics_pipeline;
         uint32_t m_pipeline_subpass;
-
-        ex::vulkan::image m_texture_image;
-        VkImageView m_texture_image_view;
-        VkSampler m_texture_image_sampler;
-
-        ex::model m_model;
         
         ex::vulkan::uniform_data m_uniform_data;
         ex::vulkan::buffer m_uniform_buffer;
@@ -123,5 +130,6 @@ namespace ex::vulkan {
         VkDescriptorSetLayout m_descriptor_set_layout;
         VkDescriptorPool m_descriptor_pool;
         VkDescriptorSet m_descriptor_set;
+        // ------------------------------------
     };
 }

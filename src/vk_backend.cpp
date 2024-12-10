@@ -59,7 +59,7 @@ ex::vulkan::backend::initialize(ex::window *window) {
     }
 
     create_command_pool();
-
+    
     create_swapchain(window->width(), window->height());
     create_depth_resources();
     create_render_pass();
@@ -77,12 +77,7 @@ ex::vulkan::backend::shutdown() {
     if (m_descriptor_pool) vkDestroyDescriptorPool(m_logical_device, m_descriptor_pool, m_allocator);
     if (m_descriptor_set_layout) vkDestroyDescriptorSetLayout(m_logical_device, m_descriptor_set_layout, m_allocator);    
     m_uniform_buffer.destroy(m_logical_device, m_allocator);
-    
-    m_model.destroy(m_logical_device, m_allocator);
-    if (m_texture_image_sampler) vkDestroySampler(m_logical_device, m_texture_image_sampler, m_allocator);
-    if (m_texture_image_view) vkDestroyImageView(m_logical_device, m_texture_image_view, m_allocator);
-    m_texture_image.destroy(m_logical_device, m_allocator);
-    
+        
     m_graphics_pipeline.destroy(m_logical_device, m_allocator);
 
     if (!m_command_buffers.empty()) vkFreeCommandBuffers(m_logical_device, m_command_pool, m_command_buffers.size(), m_command_buffers.data());
@@ -135,7 +130,7 @@ ex::vulkan::backend::update(float delta) {
                                       glm::vec3(0.0f, -1.0f, 0.0f));
     m_uniform_data.view = glm::rotate(m_uniform_data.view, glm::radians(-20.0f), glm::vec3(1.0f, 0.0f, 0.0f));
     m_uniform_data.view = glm::translate(m_uniform_data.view, glm::vec3(0.0f, -1.8f, 3.0f));
-    m_uniform_data.view = glm::rotate(m_uniform_data.view, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
+    //m_uniform_data.view = glm::rotate(m_uniform_data.view, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
     
     float aspect = m_swapchain_extent.width / (float) m_swapchain_extent.height;
     m_uniform_data.projection = glm::perspective(glm::radians(80.0f),
@@ -155,7 +150,7 @@ ex::vulkan::backend::update(float delta) {
 
 
 void
-ex::vulkan::backend::begin() {
+ex::vulkan::backend::begin_render() {
     VK_CHECK(vkWaitForFences(m_logical_device,
                              1,
                              &m_fence,
@@ -202,32 +197,7 @@ ex::vulkan::backend::begin() {
 }
 
 void
-ex::vulkan::backend::render() {
-    m_graphics_pipeline.bind(m_command_buffers[m_next_image_index],
-                             VK_PIPELINE_BIND_POINT_GRAPHICS);
-    m_graphics_pipeline.update_dynamic(m_command_buffers[m_next_image_index],
-                                       m_swapchain_extent);
-    m_graphics_pipeline.bind_descriptor(m_command_buffers[m_next_image_index],
-                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        &m_descriptor_set);    
-    m_model.bind(m_command_buffers[m_next_image_index]);
-
-    for (uint32_t i = 0; i < 2; i++) {
-        ex::vulkan::push_data push_data = {};
-        push_data.offset = glm::vec3(0.0f, 0.0f, i * 10.0f);
-        vkCmdPushConstants(m_command_buffers[m_next_image_index],
-                           m_graphics_pipeline.layout(),
-                           VK_SHADER_STAGE_VERTEX_BIT,
-                           0,
-                           sizeof(ex::vulkan::push_data),
-                           &push_data);
-        
-        m_model.draw(m_command_buffers[m_next_image_index]);
-    }
-}
-
-void
-ex::vulkan::backend::end() {
+ex::vulkan::backend::end_render() {
     vkCmdEndRenderPass(m_command_buffers[m_next_image_index]);
     VK_CHECK(vkEndCommandBuffer(m_command_buffers[m_next_image_index]));
 
@@ -261,6 +231,17 @@ ex::vulkan::backend::end() {
         EXFATAL("Failed to present swapchain image");
         throw std::runtime_error("Failed to present swapchain image");
     }
+}
+
+void
+ex::vulkan::backend::bind_pipeline() {
+    m_graphics_pipeline.bind(m_command_buffers[m_next_image_index],
+                             VK_PIPELINE_BIND_POINT_GRAPHICS);
+    m_graphics_pipeline.update_dynamic(m_command_buffers[m_next_image_index],
+                                       m_swapchain_extent);
+    m_graphics_pipeline.bind_descriptor(m_command_buffers[m_next_image_index],
+                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                        &m_descriptor_set);    
 }
 
 bool
@@ -902,8 +883,14 @@ ex::vulkan::backend::create_graphics_pipeline() {
     ex::vulkan::shader fragment_shader;   
     fragment_shader.load("res/shaders/default.frag.spv");
     fragment_shader.create(m_logical_device, m_allocator);
+
+    std::vector<VkPushConstantRange> push_constant_range(1);    
+    push_constant_range[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    push_constant_range[0].offset = 0;
+    push_constant_range[0].size = sizeof(ex::vulkan::push_data);
     
-    m_graphics_pipeline.create(vertex_shader.module(),
+    m_graphics_pipeline.create(push_constant_range,
+                               vertex_shader.module(),
                                fragment_shader.module(),
                                VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
                                m_swapchain_extent,
@@ -920,7 +907,19 @@ ex::vulkan::backend::create_graphics_pipeline() {
 }
 
 void
-ex::vulkan::backend::create_texture_image(const char *file) {
+ex::vulkan::backend::push_constant_data(ex::vulkan::push_data *push_data) {
+    vkCmdPushConstants(m_command_buffers[m_next_image_index],
+                       m_graphics_pipeline.layout(),
+                       VK_SHADER_STAGE_VERTEX_BIT,
+                       0,
+                       sizeof(ex::vulkan::push_data),
+                       push_data);
+}
+
+ex::texture
+ex::vulkan::backend::create_texture(const char *file) {
+    ex::texture out_texture = {};
+    
     int width, height, channels;
     stbi_uc *texture_data = stbi_load(file, &width, &height, &channels, STBI_rgb_alpha);
     if (!texture_data) {
@@ -950,40 +949,40 @@ ex::vulkan::backend::create_texture_image(const char *file) {
     stbi_image_free(texture_data);
     
     // CREATE IMAGE
-    m_texture_image.create(m_logical_device,
-                           m_physical_device,
-                           m_allocator,
-                           VK_IMAGE_TYPE_2D,
-                           VK_FORMAT_R8G8B8A8_UNORM,
-                           { texture_width, texture_height },
-                           VK_IMAGE_TILING_OPTIMAL,
-                           VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                           VK_IMAGE_LAYOUT_PREINITIALIZED);
+    out_texture.image.create(m_logical_device,
+                             m_physical_device,
+                             m_allocator,
+                             VK_IMAGE_TYPE_2D,
+                             VK_FORMAT_R8G8B8A8_UNORM,
+                             { texture_width, texture_height },
+                             VK_IMAGE_TILING_OPTIMAL,
+                             VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+                             VK_IMAGE_LAYOUT_PREINITIALIZED);
 
     VkCommandBuffer command_buffer = begin_single_time_commands();
-    m_texture_image.change_layout(command_buffer,
-                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                  VK_IMAGE_ASPECT_COLOR_BIT);    
+    out_texture.image.change_layout(command_buffer,
+                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                    VK_IMAGE_ASPECT_COLOR_BIT);    
     end_single_time_commands(command_buffer);
 
     VkCommandBuffer copy_command_buffer = begin_single_time_commands();
-    m_texture_image.copy_buffer(copy_command_buffer,
-                                staging_buffer.handle(),
-                                VK_IMAGE_ASPECT_COLOR_BIT,
-                                { texture_width, texture_height });
+    out_texture.image.copy_buffer(copy_command_buffer,
+                                  staging_buffer.handle(),
+                                  VK_IMAGE_ASPECT_COLOR_BIT,
+                                  { texture_width, texture_height });
     end_single_time_commands(copy_command_buffer);
 
     VkCommandBuffer shader_command_buffer = begin_single_time_commands();
-    m_texture_image.change_layout(shader_command_buffer,
-                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                  VK_IMAGE_ASPECT_COLOR_BIT);
+    out_texture.image.change_layout(shader_command_buffer,
+                                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                    VK_IMAGE_ASPECT_COLOR_BIT);
     end_single_time_commands(shader_command_buffer);
 
     staging_buffer.destroy(m_logical_device, m_allocator);
-    m_texture_image_view = m_texture_image.create_view(m_logical_device,
-                                                       m_allocator,
-                                                       VK_IMAGE_VIEW_TYPE_2D,
-                                                       VK_IMAGE_ASPECT_COLOR_BIT);
+    out_texture.image_view = out_texture.image.create_view(m_logical_device,
+                                                           m_allocator,
+                                                           VK_IMAGE_VIEW_TYPE_2D,
+                                                           VK_IMAGE_ASPECT_COLOR_BIT);
     
     // CREATE SAMPLER
     VkSamplerCreateInfo sampler_create_info = {};
@@ -1008,17 +1007,42 @@ ex::vulkan::backend::create_texture_image(const char *file) {
     VK_CHECK(vkCreateSampler(m_logical_device,
                              &sampler_create_info,
                              m_allocator,
-                             &m_texture_image_sampler));
+                             &out_texture.sampler));
+
+    return out_texture;
 }
 
 void
+ex::vulkan::backend::destroy_texture(ex::texture *texture) {
+    vkDeviceWaitIdle(m_logical_device);
+    if (texture->sampler) vkDestroySampler(m_logical_device, texture->sampler, m_allocator);
+    if (texture->image_view) vkDestroyImageView(m_logical_device, texture->image_view, m_allocator);
+    texture->image.destroy(m_logical_device, m_allocator);
+}
+
+ex::model
 ex::vulkan::backend::create_model(const char *file) {
-    m_model.load(file);
-    m_model.create(m_logical_device,
-                   m_physical_device,
-                   m_allocator,
-                   m_command_pool,
-                   m_graphics_queue);
+    ex::model out_model = {};
+    out_model.load(file);
+    out_model.create(m_logical_device,
+                     m_physical_device,
+                     m_allocator,
+                     m_command_pool,
+                     m_graphics_queue);
+    
+    return out_model;
+}
+
+void
+ex::vulkan::backend::destroy_model(ex::model *model) {
+    vkDeviceWaitIdle(m_logical_device);
+    model->destroy(m_logical_device, m_allocator);
+}
+
+void
+ex::vulkan::backend::draw_model(ex::model *model) {
+    model->bind(m_command_buffers[m_next_image_index]);
+    model->draw(m_command_buffers[m_next_image_index]);
 }
 
 void
@@ -1060,7 +1084,7 @@ ex::vulkan::backend::create_descriptor_pool() {
 }
 
 void
-ex::vulkan::backend::create_descriptor_set() {
+ex::vulkan::backend::create_descriptor_set(VkDescriptorImageInfo *descriptor_image_info) {
     VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {};
     descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     descriptor_set_allocate_info.pNext = nullptr;
@@ -1075,11 +1099,6 @@ ex::vulkan::backend::create_descriptor_set() {
     descriptor_buffer_info.buffer = m_uniform_buffer.handle();
     descriptor_buffer_info.offset = 0;
     descriptor_buffer_info.range = sizeof(ex::vulkan::uniform_data);
-
-    VkDescriptorImageInfo descriptor_image_info = {};
-    descriptor_image_info.sampler = m_texture_image_sampler;
-    descriptor_image_info.imageView = m_texture_image_view;
-    descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     
     std::array<VkWriteDescriptorSet, 2> write_descriptor_sets;
     write_descriptor_sets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1100,7 +1119,7 @@ ex::vulkan::backend::create_descriptor_set() {
     write_descriptor_sets[1].dstArrayElement = 0;
     write_descriptor_sets[1].descriptorCount = 1;
     write_descriptor_sets[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    write_descriptor_sets[1].pImageInfo = &descriptor_image_info;
+    write_descriptor_sets[1].pImageInfo = descriptor_image_info;
     write_descriptor_sets[1].pBufferInfo = nullptr;
     write_descriptor_sets[1].pTexelBufferView = nullptr;
     

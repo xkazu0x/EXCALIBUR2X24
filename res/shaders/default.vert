@@ -12,7 +12,7 @@ layout (location = 3) out vec3 out_camera_pos;
 layout (location = 4) out vec3 out_light_pos;
 
 layout (push_constant) uniform Push {
-    vec3 offset;
+    mat4 transform;
 } push;
 
 layout (binding = 0) uniform UBO {
@@ -23,7 +23,7 @@ layout (binding = 0) uniform UBO {
 } ubo;
 
 void main() {
-    vec4 world_pos = ubo.model * vec4(push.offset + in_position, 1.0);
+    vec4 world_pos = push.transform * vec4(in_position, 1.0);
     gl_Position = ubo.projection * ubo.view * world_pos;
     
     out_color = in_color;

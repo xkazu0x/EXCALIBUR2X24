@@ -17,15 +17,17 @@ int main() {
     window.show();
 
     if (!backend.initialize(&window)) return -1;
+    ex::texture texture = backend.create_texture("res/textures/paris.jpg");
+    ex::model dragon = backend.create_model("res/meshes/dragon.obj");
+    ex::model monkey = backend.create_model("res/meshes/monkey.obj");
+    
     backend.create_descriptor_set_layout();
-    backend.create_graphics_pipeline();
-    
-    backend.create_texture_image("res/textures/paris.jpg");
-    backend.create_model("res/meshes/dragon.obj");
-    
+    backend.create_graphics_pipeline();    
     backend.create_uniform_buffer();
     backend.create_descriptor_pool();
-    backend.create_descriptor_set();
+
+    VkDescriptorImageInfo image_info = texture.get_descriptor_info();
+    backend.create_descriptor_set(&image_info);
 
     auto last_time = std::chrono::high_resolution_clock::now();
     while (window.is_active()) {
@@ -39,12 +41,31 @@ int main() {
         float delta = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count() / 1000.0f;
         backend.update(delta);
         
-        backend.begin();
-        backend.render();
-        backend.end();
+        backend.begin_render();
+        backend.bind_pipeline();
+        
+        ex::vulkan::push_data push_data = {};
+        push_data.transform = glm::translate(glm::mat4(1.0f), glm::vec3(-1.5f, 0.0f, 0.0f));
+        push_data.transform = glm::rotate(push_data.transform, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
+        push_data.transform = glm::scale(push_data.transform, glm::vec3(0.2f));
+        backend.push_constant_data(&push_data);
+        backend.draw_model(&dragon);
+
+        push_data.transform = glm::translate(glm::mat4(1.0f), glm::vec3(1.5f, 1.0f, 0.0f));
+        push_data.transform = glm::rotate(push_data.transform, glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        push_data.transform = glm::rotate(push_data.transform, glm::radians(30.0f) * delta, glm::vec3(0.0f, 1.0f, 0.0f));
+        push_data.transform = glm::scale(push_data.transform, glm::vec3(0.8f));
+        backend.push_constant_data(&push_data);
+        backend.draw_model(&monkey);
+        
+        backend.end_render();
         
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+
+    backend.destroy_model(&monkey);
+    backend.destroy_model(&dragon);
+    backend.destroy_texture(&texture);
     
     backend.shutdown();
     window.destroy();

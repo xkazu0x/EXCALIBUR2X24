@@ -7,13 +7,10 @@
 #include <glm/glm.hpp>
 
 namespace ex::vulkan {
-    struct push_data {
-        glm::vec3 offset;
-    };
-
     class pipeline {
     public:
-        void create(VkShaderModule vertex_module,
+        void create(const std::vector<VkPushConstantRange> &push_constant_range,
+                    VkShaderModule vertex_module,
                     VkShaderModule fragment_module,
                     VkPrimitiveTopology topology,
                     VkExtent2D extent,

@@ -38,7 +38,7 @@ void main() {
     if (pow(max(dot(reflection, camera), 0.0), 5.0) > 0.5) {
         out_frag_color = vec4(1.0);
     } else if (dot(-camera, normal) < 0.5) {
-        out_frag_color = vec4(in_color / 10, 1.0);        
+        out_frag_color = vec4(in_color / 10, 1.0);
     } else if (max(dot(normal, light), 0.0) >= 0.1) {
         out_frag_color = vec4(in_color, 1.0);
     } else {
