@@ -9,6 +9,14 @@ ex::vulkan::model::load(const char *file) {
 }
 
 void
+ex::vulkan::model::load_array(std::vector<ex::vertex> &vertices,
+                              std::vector<uint32_t> &indices) {
+    m_mesh.create_from_array(vertices, indices);
+    m_vertex_count = static_cast<uint32_t>(m_mesh.vertices().size());
+    m_index_count = static_cast<uint32_t>(m_mesh.indices().size());
+}
+
+void
 ex::vulkan::model::create(VkDevice logical_device,
                           VkPhysicalDevice physical_device,
                           VkAllocationCallbacks *allocator,

@@ -936,6 +936,20 @@ ex::vulkan::backend::create_model(const char *file) {
     return out_model;
 }
 
+ex::vulkan::model
+ex::vulkan::backend::create_model_from_array(std::vector<ex::vertex> &vertices,
+                                             std::vector<uint32_t> &indices) {
+    ex::vulkan::model out_model = {};
+    out_model.load_array(vertices, indices);
+    out_model.create(m_logical_device,
+                     m_physical_device,
+                     m_allocator,
+                     m_command_pool,
+                     m_graphics_queue);
+    
+    return out_model;
+}
+
 void
 ex::vulkan::backend::destroy_model(ex::vulkan::model *model) {
     vkDeviceWaitIdle(m_logical_device);

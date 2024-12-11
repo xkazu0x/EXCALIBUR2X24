@@ -48,6 +48,8 @@ namespace ex::vulkan {
         void destroy_texture(ex::vulkan::texture *texture);
         
         ex::vulkan::model create_model(const char *file);
+        ex::vulkan::model create_model_from_array(std::vector<ex::vertex> &vertices,
+                                                  std::vector<uint32_t> &indices);
         void destroy_model(ex::vulkan::model *model);
         void draw_model(ex::vulkan::model *model);
 

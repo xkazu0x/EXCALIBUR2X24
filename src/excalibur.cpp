@@ -9,6 +9,15 @@
 #include <chrono>
 #include <thread>
 
+namespace ex {
+    struct object {
+        ex::vulkan::model model;
+        ex::comp::transform transform;
+    };
+}
+
+void create_grid(uint32_t size, std::vector<ex::vertex> *vertices, std::vector<uint32_t> *indices);
+
 int main() {
     EXFATAL("-+=+EXCALIBUR+=+-");
     ex::input input = {};
@@ -25,13 +34,34 @@ int main() {
     }
     
     ex::vulkan::texture texture = backend.create_texture("res/textures/paris.jpg");
-    ex::vulkan::model dragon = backend.create_model("res/meshes/dragon.obj");
-    EXDEBUG("Dragon mesh vertex count: %d", dragon.vertex_count());
-    EXDEBUG("Dragon mesh index count: %d", dragon.index_count());
-    ex::vulkan::model monkey = backend.create_model("res/meshes/monkey_smooth.obj");
-    EXDEBUG("Monkey mesh vertex count: %d", monkey.vertex_count());
-    EXDEBUG("Monkey mesh index count: %d", monkey.index_count());
-
+    
+    ex::object dragon = {};
+    dragon.model = backend.create_model("res/meshes/dragon.obj");
+    EXDEBUG("Dragon mesh vertex count: %d", dragon.model.vertex_count());
+    EXDEBUG("Dragon mesh index count: %d", dragon.model.index_count());
+    dragon.transform.translation = glm::vec3(-1.5f, 0.0f, 0.0f);
+    dragon.transform.rotation = glm::vec3(0.0f, -60.0f, 0.0f);
+    dragon.transform.scale = glm::vec3(0.25f);
+    
+    ex::object monkey = {};
+    monkey.model = backend.create_model("res/meshes/monkey_smooth.obj");
+    EXDEBUG("Monkey mesh vertex count: %d", monkey.model.vertex_count());
+    EXDEBUG("Monkey mesh index count: %d", monkey.model.index_count());
+    monkey.transform.translation = glm::vec3(1.5f, 1.0f, 0.0f);
+    monkey.transform.rotation = glm::vec3(0.0f, 180.0f, 0.0f);
+    monkey.transform.scale = glm::vec3(1.0f);
+    
+    ex::object grid = {};
+    std::vector<ex::vertex> grid_vertices = {};
+    std::vector<uint32_t> grid_indices = {};
+    create_grid(10, &grid_vertices, &grid_indices);
+    grid.model = backend.create_model_from_array(grid_vertices, grid_indices);
+    EXDEBUG("Grid mesh vertex count: %d", grid.model.vertex_count());
+    EXDEBUG("Grid mesh index count: %d", grid.model.index_count());
+    grid.transform.translation = glm::vec3(-5.0f, 0.0f, -5.0f);
+    grid.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+    grid.transform.scale = glm::vec3(1.0f);
+    
     std::vector<VkDescriptorSetLayoutBinding> descriptor_bindings;
     descriptor_bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
     descriptor_bindings.push_back({1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});    
@@ -45,21 +75,11 @@ int main() {
     VkDescriptorImageInfo image_info = texture.get_descriptor_info();
     backend.create_descriptor_set(&descriptor_set_layout,
                                   &image_info);
-    
-    ex::comp::transform dragon_transform = {};
-    dragon_transform.translation = glm::vec3(-1.5f, 0.0f, 0.0f);
-    dragon_transform.rotation = glm::vec3(0.0f, -60.0f, 0.0f);
-    dragon_transform.scale = glm::vec3(0.2f);
-    
-    ex::comp::transform monkey_transform = {};
-    monkey_transform.translation = glm::vec3(1.5f, 1.0f, 0.0f);
-    monkey_transform.rotation = glm::vec3(0.0f, 180.0f, 0.0f);
-    monkey_transform.scale = glm::vec3(0.8f);   
-
+        
     ex::camera camera = {};
-    camera.set_translation(glm::vec3(0.0f, -1.8f, 3.0f));
-    camera.set_rotation(glm::vec3(-20.0f, 0.0f, 0.0f));
-    camera.set_perspective(80.0f, (float) window.width() / (float) window.height(), 0.1f, 10.0f);
+    camera.set_translation(glm::vec3(0.0f, -2.0f, 4.0f));
+    camera.set_rotation(glm::vec3(-15.0f, 0.0f, 0.0f));
+    camera.set_perspective(80.0f, (float) window.width() / (float) window.height(), 0.1f, 20.0f);
 
     float light_speed = 0;
     auto last_time = std::chrono::high_resolution_clock::now();
@@ -79,13 +99,13 @@ int main() {
 
         float speed = 2.5f * delta;
         if (input.key_down(EX_KEY_LEFT))
-            monkey_transform.translation -= glm::vec3(speed, 0.0f, 0.0f);
+            monkey.transform.translation -= glm::vec3(speed, 0.0f, 0.0f);
         if (input.key_down(EX_KEY_RIGHT))
-            monkey_transform.translation += glm::vec3(speed, 0.0f, 0.0f);
+            monkey.transform.translation += glm::vec3(speed, 0.0f, 0.0f);
         if (input.key_down(EX_KEY_UP))
-            monkey_transform.translation += glm::vec3(0.0f, 0.0f, speed);
+            monkey.transform.translation += glm::vec3(0.0f, 0.0f, speed);
         if (input.key_down(EX_KEY_DOWN))
-            monkey_transform.translation -= glm::vec3(0.0f, 0.0f, speed);
+            monkey.transform.translation -= glm::vec3(0.0f, 0.0f, speed);
 
         camera.update_aspect_ratio(backend.get_swapchain_aspect_ratio());
 
@@ -98,21 +118,25 @@ int main() {
         backend.update_uniform_data(&uniform_data);
 
         float rotation_speed = 50.0f * delta;
-        dragon_transform.rotation.y += rotation_speed;
-        monkey_transform.rotation.y += rotation_speed;
+        dragon.transform.rotation.y += rotation_speed;
+        monkey.transform.rotation.y += rotation_speed;
         
         backend.begin_render();
         if (!window.is_minimized()) {
             backend.bind_pipeline(&graphics_pipeline);
             
             ex::vulkan::push_data push_data = {};
-            push_data.transform = dragon_transform.matrix();
+            push_data.transform = grid.transform.matrix();
             backend.push_constant_data(&graphics_pipeline, &push_data);
-            backend.draw_model(&dragon);
+            backend.draw_model(&grid.model);
+            
+            push_data.transform = dragon.transform.matrix();
+            backend.push_constant_data(&graphics_pipeline, &push_data);
+            backend.draw_model(&dragon.model);
 
-            push_data.transform = monkey_transform.matrix();
+            push_data.transform = monkey.transform.matrix();
             backend.push_constant_data(&graphics_pipeline, &push_data);
-            backend.draw_model(&monkey);
+            backend.draw_model(&monkey.model);
         }
         backend.end_render();
         input.update();
@@ -123,12 +147,52 @@ int main() {
     backend.destroy_pipeline(&graphics_pipeline);
     backend.destroy_descriptor_set_layout(&descriptor_set_layout);
     
-    backend.destroy_model(&monkey);
-    backend.destroy_model(&dragon);
+    backend.destroy_model(&grid.model);
+    backend.destroy_model(&monkey.model);
+    backend.destroy_model(&dragon.model);
     backend.destroy_texture(&texture);
     
     backend.shutdown();
     window.destroy();
     input.shutdown();
     return 0;
+}
+
+void create_grid(uint32_t size,
+                 std::vector<ex::vertex> *vertices,
+                 std::vector<uint32_t> *indices) {
+    for (uint32_t z = 0; z < size; z++) {
+        for (uint32_t x = 0; x < size; x++) {
+            vertices->push_back(ex::vertex({1.0f + x, 0.0f, 1.0f + z},
+                                           {1.0f, 1.0f, 1.0f},
+                                           {0.0f, 0.0f},
+                                           {0.0f, 0.0f, 0.0f}));
+            vertices->push_back(ex::vertex({1.0f + x, 0.0f, 0.0f + z},
+                                           {1.0f, 1.0f, 1.0f},
+                                           {0.0f, 0.0f},
+                                           {0.0f, 0.0f, 0.0f}));
+            vertices->push_back(ex::vertex({0.0f + x, 0.0f, 0.0f + z},
+                                           {1.0f, 1.0f, 1.0f},
+                                           {0.0f, 0.0f},
+                                           {0.0f, 0.0f, 0.0f}));
+            vertices->push_back(ex::vertex({1.0f + x, 0.0f, 1.0f + z},
+                                           {1.0f, 1.0f, 1.0f},
+                                           {0.0f, 0.0f},
+                                           {0.0f, 0.0f, 0.0f}));
+            vertices->push_back(ex::vertex({0.0f + x, 0.0f, 0.0f + z},
+                                           {1.0f, 1.0f, 1.0f},
+                                           {0.0f, 0.0f},
+                                           {0.0f, 0.0f, 0.0f}));
+            vertices->push_back(ex::vertex({0.0f + x, 0.0f, 1.0f + z},
+                                           {1.0f, 1.0f, 1.0f},
+                                           {0.0f, 0.0f},
+                                           {0.0f, 0.0f, 0.0f}));
+            indices->push_back(indices->size());
+            indices->push_back(indices->size());
+            indices->push_back(indices->size());
+            indices->push_back(indices->size());
+            indices->push_back(indices->size());
+            indices->push_back(indices->size());
+        }
+    }
 }

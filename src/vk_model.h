@@ -7,6 +7,8 @@ namespace ex::vulkan {
     class model {
     public:
         void load(const char *file);
+        void load_array(std::vector<ex::vertex> &vertices,
+                        std::vector<uint32_t> &indices);
         void create(VkDevice logical_device,
                     VkPhysicalDevice physical_device,
                     VkAllocationCallbacks *allocator,

@@ -9,6 +9,8 @@ namespace ex {
     class mesh {
     public:
         void create(const char *path);
+        void create_from_array(std::vector<ex::vertex> &vertices,
+                               std::vector<uint32_t> &indices);
         std::vector<ex::vertex> vertices();
         std::vector<uint32_t> indices();
         

@@ -85,6 +85,14 @@ ex::mesh::create(const char *path) {
     }    
 }
 
+void
+ex::mesh::create_from_array(std::vector<ex::vertex> &vertices,
+                            std::vector<uint32_t> &indices) {
+    m_vertices = vertices;
+    m_indices = indices;
+}
+
+
 std::vector<ex::vertex>
 ex::mesh::vertices() {
     return m_vertices;
