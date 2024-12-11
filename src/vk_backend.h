@@ -40,8 +40,8 @@ namespace ex::vulkan {
         void begin_render();
         void end_render();
         
-        void bind_pipeline();
-        void push_constant_data(ex::vulkan::push_data *push_data);
+        void push_constant_data(ex::vulkan::pipeline *pipeline,
+                                ex::vulkan::push_data *push_data);
         void update_uniform_data(ex::vulkan::uniform_data *uniform_data);
 
         ex::vulkan::texture create_texture(const char *file);
@@ -50,12 +50,20 @@ namespace ex::vulkan {
         ex::vulkan::model create_model(const char *file);
         void destroy_model(ex::vulkan::model *model);
         void draw_model(ex::vulkan::model *model);
+
+        VkDescriptorSetLayout create_descriptor_set_layout(std::vector<VkDescriptorSetLayoutBinding> &descriptor_bindings);
+        void destroy_descriptor_set_layout(VkDescriptorSetLayout *descriptor_set_layout);
         
-        void create_descriptor_set_layout();
-        void create_graphics_pipeline();
+        ex::vulkan::pipeline create_pipeline(const char *vert_file,
+                                             const char *frag_file,
+                                             VkDescriptorSetLayout *descriptor_set_layout);
+        void destroy_pipeline(ex::vulkan::pipeline *pipeline);
+        void bind_pipeline(ex::vulkan::pipeline *pipeline);
+        
         void create_uniform_buffer();
         void create_descriptor_pool();
-        void create_descriptor_set(VkDescriptorImageInfo *descriptor_image_info);
+        void create_descriptor_set(VkDescriptorSetLayout *descriptor_set_layout,
+                                   VkDescriptorImageInfo *descriptor_image_info);
 
         float get_swapchain_aspect_ratio();
         

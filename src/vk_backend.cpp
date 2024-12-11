@@ -75,10 +75,7 @@ ex::vulkan::backend::shutdown() {
     vkDeviceWaitIdle(m_logical_device);
 
     if (m_descriptor_pool) vkDestroyDescriptorPool(m_logical_device, m_descriptor_pool, m_allocator);
-    if (m_descriptor_set_layout) vkDestroyDescriptorSetLayout(m_logical_device, m_descriptor_set_layout, m_allocator);    
     m_uniform_buffer.destroy(m_logical_device, m_allocator);
-        
-    m_graphics_pipeline.destroy(m_logical_device, m_allocator);
 
     if (!m_command_buffers.empty()) vkFreeCommandBuffers(m_logical_device, m_command_pool, m_command_buffers.size(), m_command_buffers.data());
     if (m_semaphore_render) vkDestroySemaphore(m_logical_device, m_semaphore_render, m_allocator);
@@ -807,80 +804,10 @@ ex::vulkan::backend::allocate_command_buffers() {
 }
 
 void
-ex::vulkan::backend::create_descriptor_set_layout() {
-    std::array<VkDescriptorSetLayoutBinding, 2> descriptor_set_layout_bindings;
-    descriptor_set_layout_bindings[0].binding = 0;
-    descriptor_set_layout_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    descriptor_set_layout_bindings[0].descriptorCount = 1;
-    descriptor_set_layout_bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    descriptor_set_layout_bindings[0].pImmutableSamplers = nullptr;
-
-    descriptor_set_layout_bindings[1].binding = 1;
-    descriptor_set_layout_bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    descriptor_set_layout_bindings[1].descriptorCount = 1;
-    descriptor_set_layout_bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    descriptor_set_layout_bindings[1].pImmutableSamplers = nullptr;
-    
-    VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {};
-    descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    descriptor_set_layout_create_info.pNext = nullptr;
-    descriptor_set_layout_create_info.flags = 0;
-    descriptor_set_layout_create_info.bindingCount = static_cast<uint32_t>(descriptor_set_layout_bindings.size());
-    descriptor_set_layout_create_info.pBindings = descriptor_set_layout_bindings.data();
-    VK_CHECK(vkCreateDescriptorSetLayout(m_logical_device,
-                                         &descriptor_set_layout_create_info,
-                                         m_allocator,
-                                         &m_descriptor_set_layout));
-}
-
-void
-ex::vulkan::backend::create_graphics_pipeline() {
-    ex::vulkan::shader vertex_shader;
-    vertex_shader.load("res/shaders/default.vert.spv");
-    vertex_shader.create(m_logical_device, m_allocator);
-    
-    ex::vulkan::shader fragment_shader;   
-    fragment_shader.load("res/shaders/default.frag.spv");
-    fragment_shader.create(m_logical_device, m_allocator);
-
-    std::vector<VkPushConstantRange> push_constant_range(1);    
-    push_constant_range[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    push_constant_range[0].offset = 0;
-    push_constant_range[0].size = sizeof(ex::vulkan::push_data);
-    
-    m_graphics_pipeline.create(push_constant_range,
-                               vertex_shader.module(),
-                               fragment_shader.module(),
-                               VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-                               m_swapchain_extent,
-                               VK_POLYGON_MODE_FILL,
-                               //VK_POLYGON_MODE_LINE,
-                               &m_descriptor_set_layout,
-                               m_render_pass,
-                               m_pipeline_subpass,
-                               m_logical_device,
-                               m_allocator);
-
-    vertex_shader.destroy(m_logical_device, m_allocator);
-    fragment_shader.destroy(m_logical_device, m_allocator);
-}
-
-
-void
-ex::vulkan::backend::bind_pipeline() {
-    m_graphics_pipeline.bind(m_command_buffers[m_next_image_index],
-                             VK_PIPELINE_BIND_POINT_GRAPHICS);
-    m_graphics_pipeline.update_dynamic(m_command_buffers[m_next_image_index],
-                                       m_swapchain_extent);
-    m_graphics_pipeline.bind_descriptor(m_command_buffers[m_next_image_index],
-                                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                        &m_descriptor_set);    
-}
-
-void
-ex::vulkan::backend::push_constant_data(ex::vulkan::push_data *push_data) {
+ex::vulkan::backend::push_constant_data(ex::vulkan::pipeline *pipeline,
+                                        ex::vulkan::push_data *push_data) {
     vkCmdPushConstants(m_command_buffers[m_next_image_index],
-                       m_graphics_pipeline.layout(),
+                       pipeline->layout(),
                        VK_SHADER_STAGE_VERTEX_BIT,
                        0,
                        sizeof(ex::vulkan::push_data),
@@ -1020,6 +947,83 @@ ex::vulkan::backend::draw_model(ex::vulkan::model *model) {
     model->draw(m_command_buffers[m_next_image_index]);
 }
 
+VkDescriptorSetLayout
+ex::vulkan::backend::create_descriptor_set_layout(std::vector<VkDescriptorSetLayoutBinding> &descriptor_bindings) {
+    VkDescriptorSetLayout out_descriptor_set_layout;
+    
+    VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {};
+    descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptor_set_layout_create_info.pNext = nullptr;
+    descriptor_set_layout_create_info.flags = 0;
+    descriptor_set_layout_create_info.bindingCount = static_cast<uint32_t>(descriptor_bindings.size());
+    descriptor_set_layout_create_info.pBindings = descriptor_bindings.data();
+    VK_CHECK(vkCreateDescriptorSetLayout(m_logical_device,
+                                         &descriptor_set_layout_create_info,
+                                         m_allocator,
+                                         &out_descriptor_set_layout));
+
+    return out_descriptor_set_layout;
+}
+
+void
+ex::vulkan::backend::destroy_descriptor_set_layout(VkDescriptorSetLayout *descriptor_set_layout) {
+    vkDeviceWaitIdle(m_logical_device);
+    if (*descriptor_set_layout) vkDestroyDescriptorSetLayout(m_logical_device, *descriptor_set_layout, m_allocator);
+}
+
+ex::vulkan::pipeline
+ex::vulkan::backend::create_pipeline(const char *vert_file,
+                                     const char *frag_file,
+                                     VkDescriptorSetLayout *descriptor_set_layout) {
+    ex::vulkan::shader vertex_shader;
+    vertex_shader.load(vert_file);
+    vertex_shader.create(m_logical_device, m_allocator);
+    
+    ex::vulkan::shader fragment_shader;   
+    fragment_shader.load(frag_file);
+    fragment_shader.create(m_logical_device, m_allocator);
+
+    std::vector<VkPushConstantRange> push_constant_range(1);    
+    push_constant_range[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    push_constant_range[0].offset = 0;
+    push_constant_range[0].size = sizeof(ex::vulkan::push_data);
+    
+    ex::vulkan::pipeline out_pipeline = {};
+    out_pipeline.create(push_constant_range,
+                        vertex_shader.module(),
+                        fragment_shader.module(),
+                        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+                        m_swapchain_extent,
+                        VK_POLYGON_MODE_FILL,
+                        descriptor_set_layout,
+                        m_render_pass,
+                        m_pipeline_subpass,
+                        m_logical_device,
+                        m_allocator);
+    
+    vertex_shader.destroy(m_logical_device, m_allocator);
+    fragment_shader.destroy(m_logical_device, m_allocator);
+
+    return out_pipeline;
+}
+
+void
+ex::vulkan::backend::destroy_pipeline(ex::vulkan::pipeline *pipeline) {
+    vkDeviceWaitIdle(m_logical_device);
+    pipeline->destroy(m_logical_device, m_allocator);
+}
+
+void
+ex::vulkan::backend::bind_pipeline(ex::vulkan::pipeline *pipeline) {
+    pipeline->bind(m_command_buffers[m_next_image_index],
+                   VK_PIPELINE_BIND_POINT_GRAPHICS);
+    pipeline->update_dynamic(m_command_buffers[m_next_image_index],
+                             m_swapchain_extent);
+    pipeline->bind_descriptor(m_command_buffers[m_next_image_index],
+                              VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              &m_descriptor_set);
+}
+
 void
 ex::vulkan::backend::create_uniform_buffer() {
     VkDeviceSize uniform_buffer_size = sizeof(ex::vulkan::uniform_data);
@@ -1059,13 +1063,14 @@ ex::vulkan::backend::create_descriptor_pool() {
 }
 
 void
-ex::vulkan::backend::create_descriptor_set(VkDescriptorImageInfo *descriptor_image_info) {
+ex::vulkan::backend::create_descriptor_set(VkDescriptorSetLayout *descriptor_set_layout,
+                                           VkDescriptorImageInfo *descriptor_image_info) {
     VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {};
     descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     descriptor_set_allocate_info.pNext = nullptr;
     descriptor_set_allocate_info.descriptorPool = m_descriptor_pool;
     descriptor_set_allocate_info.descriptorSetCount = 1;
-    descriptor_set_allocate_info.pSetLayouts = &m_descriptor_set_layout;
+    descriptor_set_allocate_info.pSetLayouts = descriptor_set_layout;
     VK_CHECK(vkAllocateDescriptorSets(m_logical_device,
                                       &descriptor_set_allocate_info,
                                       &m_descriptor_set));
