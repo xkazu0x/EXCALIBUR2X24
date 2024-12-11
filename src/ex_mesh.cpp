@@ -53,15 +53,12 @@ ex::mesh::create(const char *path) {
                     attributes.vertices[3 * index.vertex_index + 1],
                     attributes.vertices[3 * index.vertex_index + 2],
                 };
-
-                uint32_t color_index = 3 * index.vertex_index + 2;
-                if (color_index < attributes.colors.size()) {
-                    vertex.color = {
-                        attributes.colors[color_index - 2],
-                        attributes.colors[color_index - 1],
-                        attributes.colors[color_index - 0],
-                    };
-                }
+                
+                vertex.color = {
+                    attributes.colors[3 * index.vertex_index + 0],
+                    attributes.colors[3 * index.vertex_index + 1],
+                    attributes.colors[3 * index.vertex_index + 2],
+                };
             }
 
             if (index.texcoord_index >= 0) {

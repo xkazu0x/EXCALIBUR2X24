@@ -17,36 +17,19 @@ ex::vertex::operator==(const vertex &other) const {
         
 std::vector<VkVertexInputBindingDescription>
 ex::vertex::get_binding_descriptions() {
-    std::vector<VkVertexInputBindingDescription> vertex_input_binding_descriptions(1);
-    vertex_input_binding_descriptions[0].binding = 0;
-    vertex_input_binding_descriptions[0].stride = sizeof(ex::vertex);
-    vertex_input_binding_descriptions[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-            
-    return vertex_input_binding_descriptions;
+    std::vector<VkVertexInputBindingDescription> binding_descriptions;
+    binding_descriptions.push_back({0, sizeof(ex::vertex), VK_VERTEX_INPUT_RATE_VERTEX});
+                
+    return binding_descriptions;
 }
 
 std::vector<VkVertexInputAttributeDescription>
 ex::vertex::get_attribute_descriptions() {
-    std::vector<VkVertexInputAttributeDescription> vertex_input_attribute_descriptions(4);
-    vertex_input_attribute_descriptions[0].location = 0;
-    vertex_input_attribute_descriptions[0].binding = 0;
-    vertex_input_attribute_descriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertex_input_attribute_descriptions[0].offset = offsetof(ex::vertex, position);
-    
-    vertex_input_attribute_descriptions[1].location = 1;
-    vertex_input_attribute_descriptions[1].binding = 0;
-    vertex_input_attribute_descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertex_input_attribute_descriptions[1].offset = offsetof(ex::vertex, color);
+    std::vector<VkVertexInputAttributeDescription> attribute_descriptions;
+    attribute_descriptions.push_back({0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ex::vertex, position)});
+    attribute_descriptions.push_back({1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ex::vertex, color)});
+    attribute_descriptions.push_back({2, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(ex::vertex, uv)});
+    attribute_descriptions.push_back({3, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(ex::vertex, normal)});
             
-    vertex_input_attribute_descriptions[2].location = 2;
-    vertex_input_attribute_descriptions[2].binding = 0;
-    vertex_input_attribute_descriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-    vertex_input_attribute_descriptions[2].offset = offsetof(ex::vertex, uv);
-
-    vertex_input_attribute_descriptions[3].location = 3;
-    vertex_input_attribute_descriptions[3].binding = 0;
-    vertex_input_attribute_descriptions[3].format = VK_FORMAT_R32G32B32_SFLOAT;
-    vertex_input_attribute_descriptions[3].offset = offsetof(ex::vertex, normal);
-            
-    return vertex_input_attribute_descriptions;
+    return attribute_descriptions;
 }

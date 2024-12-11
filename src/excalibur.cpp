@@ -28,24 +28,14 @@ int main() {
     ex::vulkan::model dragon = backend.create_model("res/meshes/dragon.obj");
     EXDEBUG("Dragon mesh vertex count: %d", dragon.vertex_count());
     EXDEBUG("Dragon mesh index count: %d", dragon.index_count());
-    ex::vulkan::model monkey = backend.create_model("res/meshes/monkey.obj");
+    ex::vulkan::model monkey = backend.create_model("res/meshes/monkey_smooth.obj");
     EXDEBUG("Monkey mesh vertex count: %d", monkey.vertex_count());
     EXDEBUG("Monkey mesh index count: %d", monkey.index_count());
 
-    std::vector<VkDescriptorSetLayoutBinding> descriptor_set_layout_bindings(2);
-    descriptor_set_layout_bindings[0].binding = 0;
-    descriptor_set_layout_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    descriptor_set_layout_bindings[0].descriptorCount = 1;
-    descriptor_set_layout_bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    descriptor_set_layout_bindings[0].pImmutableSamplers = nullptr;
-
-    descriptor_set_layout_bindings[1].binding = 1;
-    descriptor_set_layout_bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    descriptor_set_layout_bindings[1].descriptorCount = 1;
-    descriptor_set_layout_bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    descriptor_set_layout_bindings[1].pImmutableSamplers = nullptr;
-    
-    VkDescriptorSetLayout descriptor_set_layout = backend.create_descriptor_set_layout(descriptor_set_layout_bindings);
+    std::vector<VkDescriptorSetLayoutBinding> descriptor_bindings;
+    descriptor_bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
+    descriptor_bindings.push_back({1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});    
+    VkDescriptorSetLayout descriptor_set_layout = backend.create_descriptor_set_layout(descriptor_bindings);
     ex::vulkan::pipeline graphics_pipeline = backend.create_pipeline("res/shaders/default.vert.spv",
                                                                      "res/shaders/default.frag.spv",
                                                                      &descriptor_set_layout);
