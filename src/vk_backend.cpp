@@ -431,6 +431,7 @@ ex::vulkan::backend::create_logical_device() {
 
     VkPhysicalDeviceFeatures physical_device_features = {};
     physical_device_features.samplerAnisotropy = VK_TRUE;
+    physical_device_features.fillModeNonSolid = VK_TRUE;
     
     VkDeviceCreateInfo device_create_info = {};
     device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -994,7 +995,8 @@ ex::vulkan::backend::create_pipeline(const char *vert_file,
                         fragment_shader.module(),
                         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
                         m_swapchain_extent,
-                        VK_POLYGON_MODE_FILL,
+                        //VK_POLYGON_MODE_FILL,
+                        VK_POLYGON_MODE_LINE,
                         descriptor_set_layout,
                         m_render_pass,
                         m_pipeline_subpass,

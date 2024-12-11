@@ -17,6 +17,9 @@ namespace ex::vulkan {
         void bind(VkCommandBuffer command_bufer);
         void draw(VkCommandBuffer command_buffer);
 
+        uint32_t vertex_count() { return m_vertex_count; }
+        uint32_t index_count() { return m_index_count; }
+        
     private:
         void create_vertex_buffer(VkDevice logical_device,
                                   VkPhysicalDevice physical_device,

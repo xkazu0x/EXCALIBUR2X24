@@ -1,8 +1,9 @@
 #include "vk_model.h"
+#include "ex_logger.h"
 
 void
 ex::vulkan::model::load(const char *file) {
-    m_mesh.create(file);
+    m_mesh.create(file);    
     m_vertex_count = static_cast<uint32_t>(m_mesh.vertices().size());
     m_index_count = static_cast<uint32_t>(m_mesh.indices().size());
 }

@@ -26,7 +26,11 @@ int main() {
     
     ex::vulkan::texture texture = backend.create_texture("res/textures/paris.jpg");
     ex::vulkan::model dragon = backend.create_model("res/meshes/dragon.obj");
+    EXDEBUG("Dragon mesh vertex count: %d", dragon.vertex_count());
+    EXDEBUG("Dragon mesh index count: %d", dragon.index_count());
     ex::vulkan::model monkey = backend.create_model("res/meshes/monkey.obj");
+    EXDEBUG("Monkey mesh vertex count: %d", monkey.vertex_count());
+    EXDEBUG("Monkey mesh index count: %d", monkey.index_count());
 
     std::vector<VkDescriptorSetLayoutBinding> descriptor_set_layout_bindings(2);
     descriptor_set_layout_bindings[0].binding = 0;
