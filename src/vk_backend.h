@@ -40,33 +40,31 @@ namespace ex::vulkan {
         void begin_render();
         void end_render();
         
-        void push_constant_data(ex::vulkan::pipeline *pipeline,
-                                ex::vulkan::push_data *push_data);
-        void update_uniform_data(ex::vulkan::uniform_data *uniform_data);
+        void push_constant_data(ex::vulkan::pipeline *pipeline, ex::vulkan::push_data *push_data);
+        void copy_buffer_data(ex::vulkan::buffer *buffer, const void *source, VkDeviceSize size);
 
         ex::vulkan::texture create_texture(const char *file);
         void destroy_texture(ex::vulkan::texture *texture);
         
         ex::vulkan::model create_model(const char *file);
-        ex::vulkan::model create_model_from_array(std::vector<ex::vertex> &vertices,
-                                                  std::vector<uint32_t> &indices);
+        ex::vulkan::model create_model_from_array(std::vector<ex::vertex> &vertices, std::vector<uint32_t> &indices);
         void destroy_model(ex::vulkan::model *model);
         void draw_model(ex::vulkan::model *model);
 
-        VkDescriptorSetLayout create_descriptor_set_layout(std::vector<VkDescriptorSetLayoutBinding> &descriptor_bindings);
-        void destroy_descriptor_set_layout(VkDescriptorSetLayout *descriptor_set_layout);
-        
-        ex::vulkan::pipeline create_pipeline(const char *vert_file,
-                                             const char *frag_file,
-                                             VkDescriptorSetLayout *descriptor_set_layout);
-        void destroy_pipeline(ex::vulkan::pipeline *pipeline);
-        void bind_pipeline(ex::vulkan::pipeline *pipeline);
-        
-        void create_uniform_buffer();
-        void create_descriptor_pool();
-        void create_descriptor_set(VkDescriptorSetLayout *descriptor_set_layout,
-                                   VkDescriptorImageInfo *descriptor_image_info);
+        ex::vulkan::buffer create_buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
+        void destroy_buffer(ex::vulkan::buffer *buffer);
 
+        VkDescriptorPool create_descriptor_pool(std::vector<VkDescriptorPoolSize> &pool_sizes);
+        VkDescriptorSetLayout create_descriptor_set_layout(std::vector<VkDescriptorSetLayoutBinding> &bindings);
+        void destroy_descriptor_pool(VkDescriptorPool *descriptor_pool);
+        void destroy_descriptor_set_layout(VkDescriptorSetLayout *descriptor_set_layout);
+        VkDescriptorSet allocate_descriptor_set(VkDescriptorPool *descriptor_pool, VkDescriptorSetLayout *descriptor_set_layout);
+        void update_descriptor_sets(std::vector<VkWriteDescriptorSet> &write_descriptor_sets);
+        
+        ex::vulkan::pipeline create_pipeline(const char *vert_file, const char *frag_file, VkDescriptorSetLayout *descriptor_set_layout);
+        void destroy_pipeline(ex::vulkan::pipeline *pipeline);
+        void bind_pipeline(ex::vulkan::pipeline *pipeline, VkDescriptorSet *descriptor_set);
+        
         float get_swapchain_aspect_ratio();
         
     private:
@@ -85,12 +83,8 @@ namespace ex::vulkan {
         void allocate_command_buffers();
         
         VkCommandBuffer begin_single_time_commands();
-        void end_single_time_commands(VkCommandBuffer command_buffer);
-        
-        VkImageView create_image_view(VkImage image,
-                                      VkImageViewType type,
-                                      VkFormat format,
-                                      VkImageAspectFlags aspect_flags);
+        void end_single_time_commands(VkCommandBuffer command_buffer);        
+        VkImageView create_image_view(VkImage image, VkImageViewType type, VkFormat format, VkImageAspectFlags aspect_flags);
         
     private:
         ex::window *m_window;
@@ -131,15 +125,6 @@ namespace ex::vulkan {
         VkSemaphore m_semaphore_present;
         VkSemaphore m_semaphore_render;
 
-        // TODO: take this block outta here --
-        ex::vulkan::pipeline m_graphics_pipeline;
         uint32_t m_pipeline_subpass;
-        
-        ex::vulkan::buffer m_uniform_buffer;
-        
-        VkDescriptorSetLayout m_descriptor_set_layout;
-        VkDescriptorPool m_descriptor_pool;
-        VkDescriptorSet m_descriptor_set;
-        // ------------------------------------
     };
 }

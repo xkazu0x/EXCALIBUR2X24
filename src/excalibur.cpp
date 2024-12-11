@@ -61,21 +61,51 @@ int main() {
     grid.transform.translation = glm::vec3(-5.0f, 0.0f, -5.0f);
     grid.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
     grid.transform.scale = glm::vec3(1.0f);
-    
+
+    ex::vulkan::buffer uniform_buffer = backend.create_buffer(sizeof(ex::vulkan::uniform_data),
+                                                              VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                                              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    std::vector<VkDescriptorPoolSize> descriptor_pool_sizes;
+    descriptor_pool_sizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
+    descriptor_pool_sizes.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1});
+    VkDescriptorPool descriptor_pool = backend.create_descriptor_pool(descriptor_pool_sizes);    
     std::vector<VkDescriptorSetLayoutBinding> descriptor_bindings;
     descriptor_bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
-    descriptor_bindings.push_back({1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});    
+    descriptor_bindings.push_back({1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
     VkDescriptorSetLayout descriptor_set_layout = backend.create_descriptor_set_layout(descriptor_bindings);
+    
+    VkDescriptorSet descriptor_set = backend.allocate_descriptor_set(&descriptor_pool, &descriptor_set_layout);    
+    std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+    write_descriptor_sets.push_back({
+            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            nullptr,
+            descriptor_set,
+            0,
+            0,
+            1,
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            nullptr,
+            uniform_buffer.get_descriptor_info(),
+            nullptr});
+    write_descriptor_sets.push_back({
+            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            nullptr,
+            descriptor_set,
+            1,
+            0,
+            1,
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            texture.get_descriptor_info(),
+            nullptr,
+            nullptr});
+    backend.update_descriptor_sets(write_descriptor_sets);
+    
     ex::vulkan::pipeline graphics_pipeline = backend.create_pipeline("res/shaders/default.vert.spv",
                                                                      "res/shaders/default.frag.spv",
                                                                      &descriptor_set_layout);
-    
-    backend.create_uniform_buffer();
-    backend.create_descriptor_pool();
-    VkDescriptorImageInfo image_info = texture.get_descriptor_info();
-    backend.create_descriptor_set(&descriptor_set_layout,
-                                  &image_info);
-        
+            
     ex::camera camera = {};
     camera.set_translation(glm::vec3(0.0f, -2.0f, 4.0f));
     camera.set_rotation(glm::vec3(-15.0f, 0.0f, 0.0f));
@@ -115,7 +145,7 @@ int main() {
         light_speed += 100.0f * delta;
         uniform_data.light_pos = glm::vec3(0.0f, 3.0f, 6.0f);
         uniform_data.light_pos = glm::rotate(uniform_data.light_pos, glm::radians(light_speed) , glm::vec3(0.0f, 1.0f, 0.0f));
-        backend.update_uniform_data(&uniform_data);
+        backend.copy_buffer_data(&uniform_buffer, &uniform_data, sizeof(ex::vulkan::uniform_data));
 
         float rotation_speed = 50.0f * delta;
         dragon.transform.rotation.y += rotation_speed;
@@ -123,7 +153,7 @@ int main() {
         
         backend.begin_render();
         if (!window.is_minimized()) {
-            backend.bind_pipeline(&graphics_pipeline);
+            backend.bind_pipeline(&graphics_pipeline, &descriptor_set);
             
             ex::vulkan::push_data push_data = {};
             push_data.transform = grid.transform.matrix();
@@ -146,6 +176,9 @@ int main() {
 
     backend.destroy_pipeline(&graphics_pipeline);
     backend.destroy_descriptor_set_layout(&descriptor_set_layout);
+    backend.destroy_descriptor_pool(&descriptor_pool);
+
+    backend.destroy_buffer(&uniform_buffer);
     
     backend.destroy_model(&grid.model);
     backend.destroy_model(&monkey.model);

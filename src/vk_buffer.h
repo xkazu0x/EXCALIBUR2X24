@@ -25,9 +25,12 @@ namespace ex::vulkan {
                      VkAllocationCallbacks *allocator);
 
         VkBuffer handle();
+        VkDescriptorBufferInfo *get_descriptor_info();
         
     private:
         VkBuffer m_handle;
         VkDeviceMemory m_memory;
+        VkDescriptorBufferInfo m_descriptor_info;
+        uint32_t m_size;
     };
 }

@@ -1,11 +1,11 @@
 #include "vk_texture.h"
 
-VkDescriptorImageInfo
+VkDescriptorImageInfo *
 ex::vulkan::texture::get_descriptor_info() {
-    VkDescriptorImageInfo out_descriptor_image_info = {};
-    out_descriptor_image_info.sampler = sampler;
-    out_descriptor_image_info.imageView = image.view();
-    out_descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    m_descriptor_info = {};
+    m_descriptor_info.sampler = sampler;
+    m_descriptor_info.imageView = image.view();
+    m_descriptor_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     
-    return out_descriptor_image_info;
+    return &m_descriptor_info;
 }

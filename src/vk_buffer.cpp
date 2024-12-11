@@ -9,6 +9,8 @@ ex::vulkan::buffer::create(VkDevice logical_device,
                            VkDeviceSize size,
                            VkBufferUsageFlags usage,
                            VkMemoryPropertyFlags properties) {
+    m_size = size;
+    
     // CREATE BUFFER
     VkBufferCreateInfo buffer_create_info = {};
     buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -121,4 +123,14 @@ ex::vulkan::buffer::destroy(VkDevice logical_device,
 VkBuffer
 ex::vulkan::buffer::handle() {
     return m_handle;
+}
+
+VkDescriptorBufferInfo*
+ex::vulkan::buffer::get_descriptor_info() {
+    m_descriptor_info = {};
+    m_descriptor_info.buffer = m_handle;
+    m_descriptor_info.offset = 0;
+    m_descriptor_info.range = m_size;
+
+    return &m_descriptor_info;
 }
