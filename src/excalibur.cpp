@@ -69,14 +69,12 @@ int main() {
 
     std::vector<VkDescriptorPoolSize> descriptor_pool_sizes;
     descriptor_pool_sizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
-    descriptor_pool_sizes.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1});
     VkDescriptorPool descriptor_pool = backend.create_descriptor_pool(descriptor_pool_sizes);    
     std::vector<VkDescriptorSetLayoutBinding> descriptor_bindings;
     descriptor_bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
-    descriptor_bindings.push_back({1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
     VkDescriptorSetLayout descriptor_set_layout = backend.create_descriptor_set_layout(descriptor_bindings);
     
-    VkDescriptorSet descriptor_set = backend.allocate_descriptor_set(&descriptor_pool, &descriptor_set_layout);    
+    VkDescriptorSet descriptor_set = backend.allocate_descriptor_set(&descriptor_pool, &descriptor_set_layout);
     std::vector<VkWriteDescriptorSet> write_descriptor_sets;
     write_descriptor_sets.push_back({
             VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -89,10 +87,37 @@ int main() {
             nullptr,
             uniform_buffer.get_descriptor_info(),
             nullptr});
-    write_descriptor_sets.push_back({
+    backend.update_descriptor_sets(write_descriptor_sets);    
+    ex::vulkan::pipeline colored_pipeline = backend.create_pipeline("res/shaders/default.vert.spv",
+                                                                    "res/shaders/colored.frag.spv",
+                                                                    &descriptor_set_layout);
+
+    std::vector<VkDescriptorPoolSize> descriptor_pool_sizes1;
+    descriptor_pool_sizes1.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
+    descriptor_pool_sizes1.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1});
+    VkDescriptorPool descriptor_pool1 = backend.create_descriptor_pool(descriptor_pool_sizes1);
+    std::vector<VkDescriptorSetLayoutBinding> descriptor_bindings1;
+    descriptor_bindings1.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
+    descriptor_bindings1.push_back({1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+    VkDescriptorSetLayout descriptor_set_layout1 = backend.create_descriptor_set_layout(descriptor_bindings1);
+
+    VkDescriptorSet descriptor_set1 = backend.allocate_descriptor_set(&descriptor_pool1, &descriptor_set_layout1);
+    std::vector<VkWriteDescriptorSet> write_descriptor_sets1;
+    write_descriptor_sets1.push_back({
             VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
             nullptr,
-            descriptor_set,
+            descriptor_set1,
+            0,
+            0,
+            1,
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            nullptr,
+            uniform_buffer.get_descriptor_info(),
+            nullptr});
+    write_descriptor_sets1.push_back({
+            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            nullptr,
+            descriptor_set1,
             1,
             0,
             1,
@@ -100,12 +125,11 @@ int main() {
             texture.get_descriptor_info(),
             nullptr,
             nullptr});
-    backend.update_descriptor_sets(write_descriptor_sets);
+    backend.update_descriptor_sets(write_descriptor_sets1);
+    ex::vulkan::pipeline textured_pipeline = backend.create_pipeline("res/shaders/default.vert.spv",
+                                                                     "res/shaders/textured.frag.spv",
+                                                                     &descriptor_set_layout1);
     
-    ex::vulkan::pipeline graphics_pipeline = backend.create_pipeline("res/shaders/default.vert.spv",
-                                                                     "res/shaders/default.frag.spv",
-                                                                     &descriptor_set_layout);
-            
     ex::camera camera = {};
     camera.set_translation(glm::vec3(0.0f, -2.0f, 4.0f));
     camera.set_rotation(glm::vec3(-15.0f, 0.0f, 0.0f));
@@ -153,20 +177,21 @@ int main() {
         
         backend.begin_render();
         if (!window.is_minimized()) {
-            backend.bind_pipeline(&graphics_pipeline, &descriptor_set);
+            backend.bind_pipeline(&textured_pipeline, &descriptor_set1);
             
-            ex::vulkan::push_data push_data = {};
-            push_data.transform = grid.transform.matrix();
-            backend.push_constant_data(&graphics_pipeline, &push_data);
-            backend.draw_model(&grid.model);
-            
+            ex::vulkan::push_data push_data = {};            
             push_data.transform = dragon.transform.matrix();
-            backend.push_constant_data(&graphics_pipeline, &push_data);
+            backend.push_constant_data(&textured_pipeline, &push_data);
             backend.draw_model(&dragon.model);
 
+            backend.bind_pipeline(&colored_pipeline, &descriptor_set);
             push_data.transform = monkey.transform.matrix();
-            backend.push_constant_data(&graphics_pipeline, &push_data);
+            backend.push_constant_data(&colored_pipeline, &push_data);
             backend.draw_model(&monkey.model);
+
+            push_data.transform = grid.transform.matrix();
+            backend.push_constant_data(&colored_pipeline, &push_data);
+            backend.draw_model(&grid.model);
         }
         backend.end_render();
         input.update();
@@ -174,7 +199,11 @@ int main() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    backend.destroy_pipeline(&graphics_pipeline);
+    backend.destroy_pipeline(&textured_pipeline);
+    backend.destroy_descriptor_set_layout(&descriptor_set_layout1);
+    backend.destroy_descriptor_pool(&descriptor_pool1);
+    
+    backend.destroy_pipeline(&colored_pipeline);
     backend.destroy_descriptor_set_layout(&descriptor_set_layout);
     backend.destroy_descriptor_pool(&descriptor_pool);
 
