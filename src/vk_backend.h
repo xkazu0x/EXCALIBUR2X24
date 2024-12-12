@@ -7,7 +7,6 @@
 #include "vk_model.h"
 #include "vk_texture.h"
 
-#include "vk_shader.h"
 #include "vk_pipeline.h"
 #include "vk_buffer.h"
 
@@ -54,7 +53,7 @@ namespace ex::vulkan {
         ex::vulkan::buffer create_buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
         void destroy_buffer(ex::vulkan::buffer *buffer);
         
-        ex::vulkan::pipeline create_pipeline(const char *vert_file, const char *frag_file, VkDescriptorSetLayout *descriptor_set_layout);
+        ex::vulkan::pipeline create_pipeline(VkShaderModule vertex_module, VkShaderModule fragment_module, VkDescriptorSetLayout *descriptor_set_layout);
         void destroy_pipeline(ex::vulkan::pipeline *pipeline);
         void bind_pipeline(ex::vulkan::pipeline *pipeline, VkDescriptorSet *descriptor_set);
         

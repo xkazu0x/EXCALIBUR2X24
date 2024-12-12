@@ -4,42 +4,47 @@
 #include <fstream>
 
 void
-ex::vulkan::shader::load(const char *file) {
-    m_code = read_file(file);
+ex::vulkan::shader::create(ex::vulkan::backend *backend, std::string vertex_path, std::string fragment_path) {
+    std::vector<char> vertex_code = read_file(vertex_path);
+    std::vector<char> fragment_code = read_file(fragment_path);
+
+    VkShaderModuleCreateInfo vertex_module_create_info = {};
+    vertex_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    vertex_module_create_info.codeSize = static_cast<size_t>(vertex_code.size());
+    vertex_module_create_info.pCode = reinterpret_cast<const uint32_t *>(vertex_code.data());
+    VK_CHECK(vkCreateShaderModule(backend->logical_device(),
+                                  &vertex_module_create_info,
+                                  backend->allocator(),
+                                  &m_vertex_module));
+    
+    VkShaderModuleCreateInfo fragment_module_create_info = {};
+    fragment_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    fragment_module_create_info.codeSize = static_cast<size_t>(fragment_code.size());
+    fragment_module_create_info.pCode = reinterpret_cast<const uint32_t *>(fragment_code.data());
+    VK_CHECK(vkCreateShaderModule(backend->logical_device(),
+                                  &fragment_module_create_info,
+                                  backend->allocator(),
+                                  &m_fragment_module));
 }
 
 void
-ex::vulkan::shader::create(VkDevice logical_device,
-                           VkAllocationCallbacks *allocator) {
-    VkShaderModuleCreateInfo shader_module_create_info = {};
-    shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    shader_module_create_info.codeSize = static_cast<size_t>(m_code.size());
-    shader_module_create_info.pCode = reinterpret_cast<const uint32_t *>(m_code.data());
-    VK_CHECK(vkCreateShaderModule(logical_device,
-                                  &shader_module_create_info,
-                                  allocator,
-                                  &m_module));
-}
+ex::vulkan::shader::destroy(ex::vulkan::backend *backend) {
+    if (m_vertex_module) {
+        vkDestroyShaderModule(backend->logical_device(),
+                              m_vertex_module,
+                              backend->allocator());
+    }
 
-void
-ex::vulkan::shader::destroy(VkDevice logical_device,
-                            VkAllocationCallbacks *allocator) {
-    if (m_module) {
-        vkDestroyShaderModule(logical_device,
-                              m_module,
-                              allocator);
+    if (m_fragment_module) {
+        vkDestroyShaderModule(backend->logical_device(),
+                              m_fragment_module,
+                              backend->allocator());
     }
 }
 
-VkShaderModule
-ex::vulkan::shader::module() { return m_module; }
-
-uint32_t
-ex::vulkan::shader::size() { return m_code.size(); }
-
 std::vector<char>
-ex::vulkan::shader::read_file(const char *file_name) {
-    std::ifstream file(file_name, std::ios::ate | std::ios::binary);
+ex::vulkan::shader::read_file(std::string file_path) {
+    std::ifstream file(file_path, std::ios::ate | std::ios::binary);
     if (!file.is_open()) {
         EXFATAL("[SHADER] Failed to open file");
         throw std::runtime_error("[SHADER] Failed to open file");

@@ -3,7 +3,9 @@
 #include "ex_input.h"
 #include "ex_component.hpp"
 #include "ex_camera.h"
+
 #include "vk_backend.h"
+#include "vk_shader.h"
 #include "vk_descriptor.h"
 
 #include <memory>
@@ -26,6 +28,11 @@ struct objects {
     ex::object monkey;
     ex::object grid;
 } objects;
+
+struct vulkan_shaders {
+    ex::vulkan::shader colored;
+    ex::vulkan::shader textured;
+} shaders;
 
 struct vulkan_pipelines {
     ex::vulkan::pipeline colored;
@@ -75,7 +82,7 @@ int main() {
                                                               VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                                               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
+    
     ex::vulkan::descriptor_pool descriptor_pool;
     descriptor_pool.add_size(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
     descriptor_pool.create(&backend);
@@ -86,9 +93,6 @@ int main() {
     descriptor_set.allocate(&backend, &descriptor_pool, &descriptor_set_layout);
     descriptor_set.add_write_set(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, uniform_buffer.get_descriptor_info());
     descriptor_set.update(&backend);
-    pipelines.colored = backend.create_pipeline("res/shaders/default.vert.spv",
-                                                "res/shaders/colored.frag.spv",
-                                                descriptor_set_layout.handle());
 
     ex::vulkan::descriptor_pool descriptor_pool1;
     descriptor_pool1.add_size(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
@@ -103,9 +107,15 @@ int main() {
     descriptor_set1.add_write_set(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, uniform_buffer.get_descriptor_info());
     descriptor_set1.add_write_set(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, texture.get_descriptor_info(), nullptr);
     descriptor_set1.update(&backend);
-    pipelines.textured = backend.create_pipeline("res/shaders/default.vert.spv",
-                                                 "res/shaders/textured.frag.spv",
-                                                 descriptor_set_layout1.handle());
+
+    shaders.colored.create(&backend, "res/shaders/default.vert.spv", "res/shaders/colored.frag.spv");
+    shaders.textured.create(&backend, "res/shaders/default.vert.spv", "res/shaders/textured.frag.spv");
+    
+    pipelines.colored = backend.create_pipeline(shaders.colored.vertex_module(), shaders.colored.fragment_module(), descriptor_set_layout.handle());
+    pipelines.textured = backend.create_pipeline(shaders.textured.vertex_module(), shaders.textured.fragment_module(), descriptor_set_layout1.handle());
+
+    shaders.colored.destroy(&backend);
+    shaders.textured.destroy(&backend);
     
     ex::camera camera = {};
     camera.set_translation(glm::vec3(0.0f, -2.0f, 4.0f));

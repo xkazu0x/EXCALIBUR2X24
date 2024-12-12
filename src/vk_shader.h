@@ -1,25 +1,25 @@
 #pragma once
 
+#include "vk_backend.h"
+
 #include <vulkan/vulkan.h>
 #include <vector>
+#include <string>
 
 namespace ex::vulkan {
     class shader {
     public:
-        void load(const char *file);
-        void create(VkDevice logical_device,
-                    VkAllocationCallbacks *allocator);
-        void destroy(VkDevice logical_device,
-                     VkAllocationCallbacks *allocator);
+        void create(ex::vulkan::backend *backend, std::string vertex_path, std::string fragment_path);
+        void destroy(ex::vulkan::backend *backend);
 
-        VkShaderModule module();
-        uint32_t size();
+        VkShaderModule vertex_module() { return m_vertex_module; }
+        VkShaderModule fragment_module() { return m_fragment_module; }
         
     private:
-        std::vector<char> read_file(const char *file_name);
+        std::vector<char> read_file(std::string file_path);
         
     private:
-        VkShaderModule m_module;
-        std::vector<char> m_code;
+        VkShaderModule m_vertex_module;
+        VkShaderModule m_fragment_module;
     };
 }

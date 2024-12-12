@@ -960,17 +960,9 @@ ex::vulkan::backend::draw_model(ex::vulkan::model *model) {
 }
 
 ex::vulkan::pipeline
-ex::vulkan::backend::create_pipeline(const char *vert_file,
-                                     const char *frag_file,
+ex::vulkan::backend::create_pipeline(VkShaderModule vertex_module,
+                                     VkShaderModule fragment_module,
                                      VkDescriptorSetLayout *descriptor_set_layout) {
-    ex::vulkan::shader vertex_shader;
-    vertex_shader.load(vert_file);
-    vertex_shader.create(m_logical_device, m_allocator);
-    
-    ex::vulkan::shader fragment_shader;   
-    fragment_shader.load(frag_file);
-    fragment_shader.create(m_logical_device, m_allocator);
-
     std::vector<VkPushConstantRange> push_constant_range(1);    
     push_constant_range[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
     push_constant_range[0].offset = 0;
@@ -978,8 +970,8 @@ ex::vulkan::backend::create_pipeline(const char *vert_file,
     
     ex::vulkan::pipeline out_pipeline = {};
     out_pipeline.create(push_constant_range,
-                        vertex_shader.module(),
-                        fragment_shader.module(),
+                        vertex_module,
+                        fragment_module,
                         VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
                         m_swapchain_extent,
                         VK_POLYGON_MODE_FILL,
@@ -990,9 +982,6 @@ ex::vulkan::backend::create_pipeline(const char *vert_file,
                         m_logical_device,
                         m_allocator);
     
-    vertex_shader.destroy(m_logical_device, m_allocator);
-    fragment_shader.destroy(m_logical_device, m_allocator);
-
     return out_pipeline;
 }
 
