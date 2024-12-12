@@ -802,17 +802,6 @@ ex::vulkan::backend::allocate_command_buffers() {
 }
 
 void
-ex::vulkan::backend::push_constant_data(ex::vulkan::pipeline *pipeline,
-                                        ex::vulkan::push_data *push_data) {
-    vkCmdPushConstants(m_command_buffers[m_next_image_index],
-                       pipeline->layout(),
-                       VK_SHADER_STAGE_VERTEX_BIT,
-                       0,
-                       sizeof(ex::vulkan::push_data),
-                       push_data);
-}
-
-void
 ex::vulkan::backend::copy_buffer_data(ex::vulkan::buffer *buffer, const void *source, VkDeviceSize size) {
     buffer->copy_data(m_logical_device, source, size);
 }
@@ -957,54 +946,6 @@ void
 ex::vulkan::backend::draw_model(ex::vulkan::model *model) {
     model->bind(m_command_buffers[m_next_image_index]);
     model->draw(m_command_buffers[m_next_image_index]);
-}
-
-ex::vulkan::pipeline
-ex::vulkan::backend::create_pipeline(VkShaderModule vertex_module,
-                                     VkShaderModule fragment_module,
-                                     std::vector<VkDescriptorSetLayout> &descriptor_set_layouts) {
-    std::vector<VkPushConstantRange> push_constant_range(1);    
-    push_constant_range[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    push_constant_range[0].offset = 0;
-    push_constant_range[0].size = sizeof(ex::vulkan::push_data);
-    
-    ex::vulkan::pipeline out_pipeline = {};
-    out_pipeline.create(push_constant_range,
-                        vertex_module,
-                        fragment_module,
-                        VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-                        m_swapchain_extent,
-                        VK_POLYGON_MODE_FILL,
-                        // VK_POLYGON_MODE_LINE,
-                        descriptor_set_layouts,
-                        m_render_pass,
-                        m_pipeline_subpass,
-                        m_logical_device,
-                        m_allocator);
-    
-    return out_pipeline;
-}
-
-void
-ex::vulkan::backend::destroy_pipeline(ex::vulkan::pipeline *pipeline) {
-    vkDeviceWaitIdle(m_logical_device);
-    pipeline->destroy(m_logical_device, m_allocator);
-}
-
-void
-ex::vulkan::backend::bind_pipeline(ex::vulkan::pipeline *pipeline) {
-    pipeline->bind(m_command_buffers[m_next_image_index],
-                   VK_PIPELINE_BIND_POINT_GRAPHICS);
-    pipeline->update_dynamic(m_command_buffers[m_next_image_index],
-                             m_swapchain_extent);
-}
-
-void
-ex::vulkan::backend::bind_descriptor_sets(ex::vulkan::pipeline *pipeline,
-                                          std::vector<VkDescriptorSet> descriptor_sets) {
-    pipeline->bind_descriptor_sets(m_command_buffers[m_next_image_index],
-                                   VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                   descriptor_sets);
 }
 
 ex::vulkan::buffer

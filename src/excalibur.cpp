@@ -7,6 +7,7 @@
 #include "vk_backend.h"
 #include "vk_shader.h"
 #include "vk_descriptor.h"
+#include "vk_pipeline.h"
 
 #include <memory>
 #include <chrono>
@@ -21,6 +22,10 @@ namespace ex {
         ex::vulkan::model model;
         ex::comp::transform transform;
     };
+
+    struct push_constants {
+        glm::mat4 transform;
+    };
 }
 
 struct objects {
@@ -34,7 +39,7 @@ struct vulkan_shaders {
     ex::vulkan::shader textured;
 } shaders;
 
-struct vulkan_descriptor_set {
+struct vulkan_descriptor_sets {
     ex::vulkan::descriptor_set uniform;
     ex::vulkan::descriptor_set textures;
 } descriptor_sets;
@@ -108,12 +113,24 @@ int main() {
     shaders.colored.create(&backend, "res/shaders/default.vert.spv", "res/shaders/colored.frag.spv");
     shaders.textured.create(&backend, "res/shaders/default.vert.spv", "res/shaders/textured.frag.spv");
 
-    std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
-    descriptor_set_layouts.push_back(descriptor_sets.uniform.layout());
-    pipelines.colored = backend.create_pipeline(shaders.colored.vertex_module(), shaders.colored.fragment_module(), descriptor_set_layouts);
+    pipelines.colored.push_descriptor_set_layout(descriptor_sets.uniform.layout());
+    pipelines.colored.set_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ex::push_constants));
+    pipelines.colored.build_layout(&backend);
+    pipelines.colored.set_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    pipelines.colored.set_polygon_mode(VK_POLYGON_MODE_FILL);
+    pipelines.colored.set_cull_mode(VK_CULL_MODE_BACK_BIT);
+    pipelines.colored.set_front_face(VK_FRONT_FACE_CLOCKWISE);
+    pipelines.colored.build(&backend, &shaders.colored);
 
-    descriptor_set_layouts.push_back(descriptor_sets.textures.layout());
-    pipelines.textured = backend.create_pipeline(shaders.textured.vertex_module(), shaders.textured.fragment_module(), descriptor_set_layouts);
+    pipelines.textured.push_descriptor_set_layout(descriptor_sets.uniform.layout());
+    pipelines.textured.push_descriptor_set_layout(descriptor_sets.textures.layout());
+    pipelines.textured.set_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ex::push_constants));
+    pipelines.textured.build_layout(&backend);
+    pipelines.textured.set_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    pipelines.textured.set_polygon_mode(VK_POLYGON_MODE_FILL);
+    pipelines.textured.set_cull_mode(VK_CULL_MODE_BACK_BIT);
+    pipelines.textured.set_front_face(VK_FRONT_FACE_CLOCKWISE);
+    pipelines.textured.build(&backend, &shaders.textured);
 
     shaders.colored.destroy(&backend);
     shaders.textured.destroy(&backend);
@@ -165,27 +182,29 @@ int main() {
         
         backend.begin_render();
         if (!window.is_minimized()) {
-            backend.bind_pipeline(&pipelines.textured);
-            backend.bind_descriptor_sets(&pipelines.textured,
-                                         {descriptor_sets.uniform.handle(),
-                                          descriptor_sets.textures.handle()});
+            pipelines.textured.bind(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS);
+            pipelines.textured.update_dynamic(backend.current_frame(), backend.swapchain_extent());
+            pipelines.textured.bind_descriptor_sets(backend.current_frame(),
+                                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                                    {descriptor_sets.uniform.handle(),
+                                                     descriptor_sets.textures.handle()});
             
-            ex::vulkan::push_data push_data = {};            
-            push_data.transform = objects.dragon.transform.matrix();
-            backend.push_constant_data(&pipelines.textured, &push_data);
+            ex::push_constants constants = {};
+            constants.transform = objects.dragon.transform.matrix();
+            pipelines.textured.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT, &constants);
             backend.draw_model(&objects.dragon.model);
 
-            backend.bind_pipeline(&pipelines.colored);
-            std::vector<VkDescriptorSet> sets;
-            sets.push_back(descriptor_sets.uniform.handle());
-            backend.bind_descriptor_sets(&pipelines.colored, sets);
+            std::vector<VkDescriptorSet> sets = {descriptor_sets.uniform.handle()};
+            pipelines.colored.bind(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS);
+            pipelines.colored.update_dynamic(backend.current_frame(), backend.swapchain_extent());
+            pipelines.colored.bind_descriptor_sets(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS, sets);
             
-            push_data.transform = objects.monkey.transform.matrix();
-            backend.push_constant_data(&pipelines.colored, &push_data);
+            constants.transform = objects.monkey.transform.matrix();
+            pipelines.colored.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT, &constants);
             backend.draw_model(&objects.monkey.model);
 
-            push_data.transform = objects.grid.transform.matrix();
-            backend.push_constant_data(&pipelines.colored, &push_data);
+            constants.transform = objects.grid.transform.matrix();
+            pipelines.colored.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT, &constants);
             backend.draw_model(&objects.grid.model);
         }
         backend.end_render();
@@ -194,8 +213,8 @@ int main() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    backend.destroy_pipeline(&pipelines.textured);
-    backend.destroy_pipeline(&pipelines.colored);
+    pipelines.textured.destroy(&backend);
+    pipelines.colored.destroy(&backend);
     
     descriptor_sets.textures.destroy_layout(&backend);
     descriptor_sets.uniform.destroy_layout(&backend);

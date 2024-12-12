@@ -4,53 +4,81 @@
 #include <vector>
 
 void
-ex::vulkan::pipeline::create(const std::vector<VkPushConstantRange> &push_constant_range,
-                             VkShaderModule vertex_module,
-                             VkShaderModule fragment_module,
-                             VkPrimitiveTopology topology,
-                             VkExtent2D extent,
-                             VkPolygonMode polygon_mode,
-                             std::vector<VkDescriptorSetLayout> &descriptor_set_layouts,
-                             VkRenderPass render_pass,
-                             uint32_t subpass,
-                             VkDevice logical_device,
-                             VkAllocationCallbacks *allocator) {
-    std::vector<VkPipelineShaderStageCreateInfo> shader_stages = create_shader_stages(vertex_module, fragment_module);
+ex::vulkan::pipeline::push_descriptor_set_layout(VkDescriptorSetLayout descriptor_set_layout) {
+    m_descriptor_set_layouts.push_back(descriptor_set_layout);
+}
 
-    auto vertex_binding_descriptions = ex::vertex::get_binding_descriptions();
-    auto vertex_attribute_descriptions = ex::vertex::get_attribute_descriptions();
-    VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info = create_vertex_input_state(vertex_binding_descriptions, vertex_attribute_descriptions);
-    
-    VkPipelineInputAssemblyStateCreateInfo input_assembly_state_create_info = create_input_assembly_state(topology);    
-    VkPipelineViewportStateCreateInfo viewport_state_create_info = create_viewport_state(extent);    
-    VkPipelineRasterizationStateCreateInfo rasterization_state_create_info = create_rasterization_state(polygon_mode);    
-    VkPipelineMultisampleStateCreateInfo multisample_state_create_info = create_multisample_state();    
-    VkPipelineDepthStencilStateCreateInfo depth_stencil_state_create_info = create_depth_stencil_state();
-    VkPipelineColorBlendAttachmentState color_blend_attachment_state = create_color_blend_attachment_state();    
-    VkPipelineColorBlendStateCreateInfo color_blend_state_create_info = create_color_blend_state(&color_blend_attachment_state);
+void
+ex::vulkan::pipeline::set_push_constant_range(VkShaderStageFlags stage_flags,
+                                              uint32_t offset,
+                                              uint32_t size) {
+    m_push_constant_range.stageFlags = stage_flags;
+    m_push_constant_range.offset = offset;
+    m_push_constant_range.size = size;
+}
 
-    std::vector<VkDynamicState> dynamic_states = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, };    
-    VkPipelineDynamicStateCreateInfo dynamic_state_create_info = create_dynamic_state(dynamic_states);
-    
+void
+ex::vulkan::pipeline::build_layout(ex::vulkan::backend *backend) {
     VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
     pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeline_layout_create_info.pNext = nullptr;
     pipeline_layout_create_info.flags = 0;
-    pipeline_layout_create_info.setLayoutCount = static_cast<uint32_t>(descriptor_set_layouts.size());
-    pipeline_layout_create_info.pSetLayouts = descriptor_set_layouts.data();
-    pipeline_layout_create_info.pushConstantRangeCount = static_cast<uint32_t>(push_constant_range.size());
-    pipeline_layout_create_info.pPushConstantRanges = push_constant_range.data();
-    VK_CHECK(vkCreatePipelineLayout(logical_device,
+    pipeline_layout_create_info.setLayoutCount = static_cast<uint32_t>(m_descriptor_set_layouts.size());
+    pipeline_layout_create_info.pSetLayouts = m_descriptor_set_layouts.data();
+    pipeline_layout_create_info.pushConstantRangeCount = 1;
+    pipeline_layout_create_info.pPushConstantRanges = &m_push_constant_range;
+    VK_CHECK(vkCreatePipelineLayout(backend->logical_device(),
                                     &pipeline_layout_create_info,
-                                    allocator,
+                                    backend->allocator(),
                                     &m_layout));
+}
+
+void
+ex::vulkan::pipeline::set_topology(VkPrimitiveTopology topology) {
+    m_topology = topology;
+}
+
+void
+ex::vulkan::pipeline::set_polygon_mode(VkPolygonMode polygon_mode) {
+    m_polygon_mode = polygon_mode;
+}
+
+void
+ex::vulkan::pipeline::set_cull_mode(VkCullModeFlags cull_mode) {
+    m_cull_mode = cull_mode;
+}
+
+void
+ex::vulkan::pipeline::set_front_face(VkFrontFace front_face) {
+    m_front_face = front_face;
+}
+
+void
+ex::vulkan::pipeline::build(ex::vulkan::backend *backend, ex::vulkan::shader *shader) {
+    auto shader_stage_create_info = create_shader_stages(shader->vertex_module(), shader->fragment_module());
+    
+    auto vertex_binding = ex::vertex::get_binding_descriptions();
+    auto vertex_attribute = ex::vertex::get_attribute_descriptions();
+    auto vertex_input_state_create_info = create_vertex_input_state(vertex_binding, vertex_attribute);
+    
+    auto input_assembly_state_create_info = create_input_assembly_state(m_topology);
+    auto viewport_state_create_info = create_viewport_state(backend->swapchain_extent());
+    auto rasterization_state_create_info = create_rasterization_state(m_polygon_mode, m_cull_mode, m_front_face);
+    auto multisample_state_create_info = create_multisample_state();
+    auto depth_stencil_state_create_info = create_depth_stencil_state();
+    
+    auto color_blend_attachment_state = create_color_blend_attachment_state();
+    auto color_blend_state_create_info = create_color_blend_state(&color_blend_attachment_state);
+
+    std::vector<VkDynamicState> dynamic_states = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, };
+    auto dynamic_state_create_info = create_dynamic_state(dynamic_states);
     
     VkGraphicsPipelineCreateInfo graphics_pipeline_create_info = {};
     graphics_pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     graphics_pipeline_create_info.pNext = nullptr;
     graphics_pipeline_create_info.flags = 0;
-    graphics_pipeline_create_info.stageCount = shader_stages.size();
-    graphics_pipeline_create_info.pStages = shader_stages.data();
+    graphics_pipeline_create_info.stageCount = static_cast<uint32_t>(shader_stage_create_info.size());
+    graphics_pipeline_create_info.pStages = shader_stage_create_info.data();
     graphics_pipeline_create_info.pVertexInputState = &vertex_input_state_create_info;
     graphics_pipeline_create_info.pInputAssemblyState = &input_assembly_state_create_info;
     graphics_pipeline_create_info.pTessellationState = nullptr;
@@ -61,31 +89,37 @@ ex::vulkan::pipeline::create(const std::vector<VkPushConstantRange> &push_consta
     graphics_pipeline_create_info.pColorBlendState = &color_blend_state_create_info;
     graphics_pipeline_create_info.pDynamicState = &dynamic_state_create_info;
     graphics_pipeline_create_info.layout = m_layout;
-    graphics_pipeline_create_info.renderPass = render_pass;
-    graphics_pipeline_create_info.subpass = subpass;
+    graphics_pipeline_create_info.renderPass = backend->render_pass();
+    graphics_pipeline_create_info.subpass = backend->subpass();
     graphics_pipeline_create_info.basePipelineHandle = VK_NULL_HANDLE;
     graphics_pipeline_create_info.basePipelineIndex = 0;
-    VK_CHECK(vkCreateGraphicsPipelines(logical_device,
+    VK_CHECK(vkCreateGraphicsPipelines(backend->logical_device(),
                                        nullptr,
                                        1,
                                        &graphics_pipeline_create_info,
-                                       allocator,
+                                       backend->allocator(),
                                        &m_handle));
 }
 
 void
-ex::vulkan::pipeline::destroy(VkDevice logical_device,
-                              VkAllocationCallbacks *allocator) {
-    if (m_handle) vkDestroyPipeline(logical_device, m_handle, allocator);
-    if (m_layout) vkDestroyPipelineLayout(logical_device, m_layout, allocator);
+ex::vulkan::pipeline::destroy(ex::vulkan::backend *backend) {
+    vkDeviceWaitIdle(backend->logical_device());
+    if (m_handle) {
+        vkDestroyPipeline(backend->logical_device(),
+                          m_handle,
+                          backend->allocator());
+    }
+    
+    if (m_layout) {
+        vkDestroyPipelineLayout(backend->logical_device(),
+                                m_layout,
+                                backend->allocator());
+    }
 }
 
 void
-ex::vulkan::pipeline::bind(VkCommandBuffer command_buffer,
-                           VkPipelineBindPoint bind_point) {
-    vkCmdBindPipeline(command_buffer,
-                      bind_point,
-                      m_handle);
+ex::vulkan::pipeline::bind(VkCommandBuffer command_buffer, VkPipelineBindPoint bind_point) {
+    vkCmdBindPipeline(command_buffer, bind_point, m_handle);
 }
 
 void
@@ -103,8 +137,7 @@ ex::vulkan::pipeline::bind_descriptor_sets(VkCommandBuffer command_buffer,
 }
 
 void
-ex::vulkan::pipeline::update_dynamic(VkCommandBuffer command_buffer,
-                                     VkExtent2D extent) {
+ex::vulkan::pipeline::update_dynamic(VkCommandBuffer command_buffer, VkExtent2D extent) {
     m_viewport.x = 0.0f;
     m_viewport.y = 0.0f;
     m_viewport.width = static_cast<float>(extent.width);
@@ -118,9 +151,16 @@ ex::vulkan::pipeline::update_dynamic(VkCommandBuffer command_buffer,
     vkCmdSetScissor(command_buffer, 0, 1, &m_scissor);
 }
 
-VkPipelineLayout
-ex::vulkan::pipeline::layout() {
-    return m_layout;
+void
+ex::vulkan::pipeline::push_constants(VkCommandBuffer command_buffer,
+                                     VkShaderStageFlags stage_flags,
+                                     const void *data) {
+    vkCmdPushConstants(command_buffer,
+                       m_layout,
+                       stage_flags,
+                       0,
+                       m_push_constant_range.size,
+                       data);
 }
 
 std::vector<VkPipelineShaderStageCreateInfo>
@@ -194,7 +234,9 @@ ex::vulkan::pipeline::create_viewport_state(VkExtent2D extent) {
 }
 
 VkPipelineRasterizationStateCreateInfo
-ex::vulkan::pipeline::create_rasterization_state(VkPolygonMode polygon_mode) {
+ex::vulkan::pipeline::create_rasterization_state(VkPolygonMode polygon_mode,
+                                                 VkCullModeFlags cull_mode,
+                                                 VkFrontFace front_face) {
     VkPipelineRasterizationStateCreateInfo out_rasterization_state_create_info = {};
     out_rasterization_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     out_rasterization_state_create_info.pNext = nullptr;
@@ -202,8 +244,8 @@ ex::vulkan::pipeline::create_rasterization_state(VkPolygonMode polygon_mode) {
     out_rasterization_state_create_info.depthClampEnable = VK_FALSE;
     out_rasterization_state_create_info.rasterizerDiscardEnable = VK_FALSE;
     out_rasterization_state_create_info.polygonMode = polygon_mode;
-    out_rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
-    out_rasterization_state_create_info.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    out_rasterization_state_create_info.cullMode = cull_mode;
+    out_rasterization_state_create_info.frontFace = front_face;
     out_rasterization_state_create_info.depthBiasEnable = VK_FALSE;
     out_rasterization_state_create_info.depthBiasConstantFactor = 0.0f;
     out_rasterization_state_create_info.depthBiasClamp = 0.0f;

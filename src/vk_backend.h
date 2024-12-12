@@ -6,8 +6,6 @@
 #include "vk_image.h"
 #include "vk_model.h"
 #include "vk_texture.h"
-
-#include "vk_pipeline.h"
 #include "vk_buffer.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
@@ -22,10 +20,6 @@
 #include <memory>
 
 namespace ex::vulkan {
-    struct push_data {
-        glm::mat4 transform;
-    };
-    
     struct uniform_data {
         glm::mat4 view;
         glm::mat4 projection;
@@ -39,7 +33,6 @@ namespace ex::vulkan {
         void begin_render();
         void end_render();
         
-        void push_constant_data(ex::vulkan::pipeline *pipeline, ex::vulkan::push_data *push_data);
         void copy_buffer_data(ex::vulkan::buffer *buffer, const void *source, VkDeviceSize size);
 
         ex::vulkan::texture create_texture(const char *file);
@@ -52,16 +45,15 @@ namespace ex::vulkan {
 
         ex::vulkan::buffer create_buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
         void destroy_buffer(ex::vulkan::buffer *buffer);
-        
-        ex::vulkan::pipeline create_pipeline(VkShaderModule vertex_module, VkShaderModule fragment_module, std::vector<VkDescriptorSetLayout> &descriptor_set_layouts);
-        void destroy_pipeline(ex::vulkan::pipeline *pipeline);
-        void bind_pipeline(ex::vulkan::pipeline *pipeline);
-        void bind_descriptor_sets(ex::vulkan::pipeline *pipeline, std::vector<VkDescriptorSet> descriptor_sets);
-        
+                
         float get_swapchain_aspect_ratio();
-
+        VkCommandBuffer current_frame() { return m_command_buffers[m_next_image_index]; }
+        
         VkAllocationCallbacks* allocator() { return m_allocator; }
         VkDevice& logical_device() { return m_logical_device; }
+        VkExtent2D swapchain_extent() { return m_swapchain_extent; }
+        VkRenderPass render_pass() { return m_render_pass; }
+        uint32_t subpass() { return m_pipeline_subpass; }
         
     private:
         bool create_instance();
