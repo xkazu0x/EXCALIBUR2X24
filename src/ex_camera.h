@@ -8,6 +8,8 @@ namespace ex {
         void set_translation(glm::vec3 translation);
         void set_rotation(glm::vec3 rotation);
         void set_perspective(float fov, float aspect, float znear, float zfar);
+
+        void translate(glm::vec3 translation);
         
         void update_aspect_ratio(float aspect);
 

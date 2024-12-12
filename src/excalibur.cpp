@@ -4,10 +4,15 @@
 #include "ex_component.hpp"
 #include "ex_camera.h"
 #include "vk_backend.h"
+#include "vk_descriptor.h"
 
 #include <memory>
 #include <chrono>
 #include <thread>
+
+ex::input input;
+ex::window window;
+ex::vulkan::backend backend;
 
 namespace ex {
     struct object {
@@ -16,119 +21,91 @@ namespace ex {
     };
 }
 
+struct objects {
+    ex::object dragon;
+    ex::object monkey;
+    ex::object grid;
+} objects;
+
+struct vulkan_pipelines {
+    ex::vulkan::pipeline colored;
+    ex::vulkan::pipeline textured;
+} pipelines;
+
 void create_grid(uint32_t size, std::vector<ex::vertex> *vertices, std::vector<uint32_t> *indices);
 
 int main() {
     EXFATAL("-+=+EXCALIBUR+=+-");
-    ex::input input = {};
     input.initialize();
 
-    ex::window window = {};
     window.create(&input, "EXCALIBUR", 960, 540, false);
     window.show();
 
-    ex::vulkan::backend backend = {};
     if (!backend.initialize(&window)) {
         EXFATAL("Failed to initialize vulkan backend");
         return -1;
     }
     
-    ex::vulkan::texture texture = backend.create_texture("res/textures/paris.jpg");
+    objects.dragon.model = backend.create_model("res/meshes/dragon.obj");
+    objects.dragon.transform.translation = glm::vec3(-1.5f, 0.0f, 0.0f);
+    objects.dragon.transform.rotation = glm::vec3(0.0f, -60.0f, 0.0f);
+    objects.dragon.transform.scale = glm::vec3(0.25f);
+    EXDEBUG("Dragon mesh vertex count: %d", objects.dragon.model.vertex_count());
+    EXDEBUG("Dragon mesh index count: %d", objects.dragon.model.index_count());
     
-    ex::object dragon = {};
-    dragon.model = backend.create_model("res/meshes/dragon.obj");
-    EXDEBUG("Dragon mesh vertex count: %d", dragon.model.vertex_count());
-    EXDEBUG("Dragon mesh index count: %d", dragon.model.index_count());
-    dragon.transform.translation = glm::vec3(-1.5f, 0.0f, 0.0f);
-    dragon.transform.rotation = glm::vec3(0.0f, -60.0f, 0.0f);
-    dragon.transform.scale = glm::vec3(0.25f);
-    
-    ex::object monkey = {};
-    monkey.model = backend.create_model("res/meshes/monkey_smooth.obj");
-    EXDEBUG("Monkey mesh vertex count: %d", monkey.model.vertex_count());
-    EXDEBUG("Monkey mesh index count: %d", monkey.model.index_count());
-    monkey.transform.translation = glm::vec3(1.5f, 1.0f, 0.0f);
-    monkey.transform.rotation = glm::vec3(0.0f, 180.0f, 0.0f);
-    monkey.transform.scale = glm::vec3(1.0f);
-    
-    ex::object grid = {};
-    std::vector<ex::vertex> grid_vertices = {};
-    std::vector<uint32_t> grid_indices = {};
-    create_grid(10, &grid_vertices, &grid_indices);
-    grid.model = backend.create_model_from_array(grid_vertices, grid_indices);
-    EXDEBUG("Grid mesh vertex count: %d", grid.model.vertex_count());
-    EXDEBUG("Grid mesh index count: %d", grid.model.index_count());
-    grid.transform.translation = glm::vec3(-5.0f, 0.0f, -5.0f);
-    grid.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
-    grid.transform.scale = glm::vec3(1.0f);
+    objects.monkey.model = backend.create_model("res/meshes/monkey_smooth.obj");
+    objects.monkey.transform.translation = glm::vec3(1.5f, 1.0f, 0.0f);
+    objects.monkey.transform.rotation = glm::vec3(0.0f, 180.0f, 0.0f);
+    objects.monkey.transform.scale = glm::vec3(1.0f);
+    EXDEBUG("Monkey mesh vertex count: %d", objects.monkey.model.vertex_count());
+    EXDEBUG("Monkey mesh index count: %d", objects.monkey.model.index_count());
 
+    std::vector<ex::vertex> grid_vertices;
+    std::vector<uint32_t> grid_indices;
+    create_grid(10, &grid_vertices, &grid_indices);
+    objects.grid.model = backend.create_model_from_array(grid_vertices, grid_indices);
+    objects.grid.transform.translation = glm::vec3(-5.0f, 0.0f, -5.0f);
+    objects.grid.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
+    objects.grid.transform.scale = glm::vec3(1.0f);
+    EXDEBUG("Grid mesh vertex count: %d", objects.grid.model.vertex_count());
+    EXDEBUG("Grid mesh index count: %d", objects.grid.model.index_count());
+    
+    ex::vulkan::texture texture = backend.create_texture("res/textures/paris.jpg");
     ex::vulkan::buffer uniform_buffer = backend.create_buffer(sizeof(ex::vulkan::uniform_data),
                                                               VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                                               VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                                                               VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    std::vector<VkDescriptorPoolSize> descriptor_pool_sizes;
-    descriptor_pool_sizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
-    VkDescriptorPool descriptor_pool = backend.create_descriptor_pool(descriptor_pool_sizes);    
-    std::vector<VkDescriptorSetLayoutBinding> descriptor_bindings;
-    descriptor_bindings.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
-    VkDescriptorSetLayout descriptor_set_layout = backend.create_descriptor_set_layout(descriptor_bindings);
-    
-    VkDescriptorSet descriptor_set = backend.allocate_descriptor_set(&descriptor_pool, &descriptor_set_layout);
-    std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-    write_descriptor_sets.push_back({
-            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            nullptr,
-            descriptor_set,
-            0,
-            0,
-            1,
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            nullptr,
-            uniform_buffer.get_descriptor_info(),
-            nullptr});
-    backend.update_descriptor_sets(write_descriptor_sets);    
-    ex::vulkan::pipeline colored_pipeline = backend.create_pipeline("res/shaders/default.vert.spv",
-                                                                    "res/shaders/colored.frag.spv",
-                                                                    &descriptor_set_layout);
+    ex::vulkan::descriptor_pool descriptor_pool;
+    descriptor_pool.add_size(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
+    descriptor_pool.create(&backend);
+    ex::vulkan::descriptor_set_layout descriptor_set_layout;
+    descriptor_set_layout.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr);
+    descriptor_set_layout.create(&backend);
+    ex::vulkan::descriptor_set descriptor_set;
+    descriptor_set.allocate(&backend, &descriptor_pool, &descriptor_set_layout);
+    descriptor_set.add_write_set(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, uniform_buffer.get_descriptor_info());
+    descriptor_set.update(&backend);
+    pipelines.colored = backend.create_pipeline("res/shaders/default.vert.spv",
+                                                "res/shaders/colored.frag.spv",
+                                                descriptor_set_layout.handle());
 
-    std::vector<VkDescriptorPoolSize> descriptor_pool_sizes1;
-    descriptor_pool_sizes1.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
-    descriptor_pool_sizes1.push_back({VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1});
-    VkDescriptorPool descriptor_pool1 = backend.create_descriptor_pool(descriptor_pool_sizes1);
-    std::vector<VkDescriptorSetLayoutBinding> descriptor_bindings1;
-    descriptor_bindings1.push_back({0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
-    descriptor_bindings1.push_back({1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-    VkDescriptorSetLayout descriptor_set_layout1 = backend.create_descriptor_set_layout(descriptor_bindings1);
-
-    VkDescriptorSet descriptor_set1 = backend.allocate_descriptor_set(&descriptor_pool1, &descriptor_set_layout1);
-    std::vector<VkWriteDescriptorSet> write_descriptor_sets1;
-    write_descriptor_sets1.push_back({
-            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            nullptr,
-            descriptor_set1,
-            0,
-            0,
-            1,
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            nullptr,
-            uniform_buffer.get_descriptor_info(),
-            nullptr});
-    write_descriptor_sets1.push_back({
-            VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            nullptr,
-            descriptor_set1,
-            1,
-            0,
-            1,
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            texture.get_descriptor_info(),
-            nullptr,
-            nullptr});
-    backend.update_descriptor_sets(write_descriptor_sets1);
-    ex::vulkan::pipeline textured_pipeline = backend.create_pipeline("res/shaders/default.vert.spv",
-                                                                     "res/shaders/textured.frag.spv",
-                                                                     &descriptor_set_layout1);
+    ex::vulkan::descriptor_pool descriptor_pool1;
+    descriptor_pool1.add_size(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
+    descriptor_pool1.add_size(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1);
+    descriptor_pool1.create(&backend);
+    ex::vulkan::descriptor_set_layout descriptor_set_layout1;
+    descriptor_set_layout1.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr);
+    descriptor_set_layout1.add_binding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr);
+    descriptor_set_layout1.create(&backend);
+    ex::vulkan::descriptor_set descriptor_set1;
+    descriptor_set1.allocate(&backend, &descriptor_pool1, &descriptor_set_layout1);
+    descriptor_set1.add_write_set(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, uniform_buffer.get_descriptor_info());
+    descriptor_set1.add_write_set(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, texture.get_descriptor_info(), nullptr);
+    descriptor_set1.update(&backend);
+    pipelines.textured = backend.create_pipeline("res/shaders/default.vert.spv",
+                                                 "res/shaders/textured.frag.spv",
+                                                 descriptor_set_layout1.handle());
     
     ex::camera camera = {};
     camera.set_translation(glm::vec3(0.0f, -2.0f, 4.0f));
@@ -152,14 +129,13 @@ int main() {
         if (input.button_pressed(EX_BUTTON_MIDDLE)) EXDEBUG("MOUSE MIDDLE BUTTON PRESSED");
 
         float speed = 2.5f * delta;
-        if (input.key_down(EX_KEY_LEFT))
-            monkey.transform.translation -= glm::vec3(speed, 0.0f, 0.0f);
-        if (input.key_down(EX_KEY_RIGHT))
-            monkey.transform.translation += glm::vec3(speed, 0.0f, 0.0f);
-        if (input.key_down(EX_KEY_UP))
-            monkey.transform.translation += glm::vec3(0.0f, 0.0f, speed);
-        if (input.key_down(EX_KEY_DOWN))
-            monkey.transform.translation -= glm::vec3(0.0f, 0.0f, speed);
+        if (input.key_down(EX_KEY_A)) camera.translate({speed, 0.0f, 0.0f});
+        if (input.key_down(EX_KEY_D)) camera.translate({-speed, 0.0f, 0.0f});
+        
+        if (input.key_down(EX_KEY_LEFT)) objects.monkey.transform.translation -= glm::vec3(speed, 0.0f, 0.0f);
+        if (input.key_down(EX_KEY_RIGHT)) objects.monkey.transform.translation += glm::vec3(speed, 0.0f, 0.0f);
+        if (input.key_down(EX_KEY_UP)) objects.monkey.transform.translation += glm::vec3(0.0f, 0.0f, speed);
+        if (input.key_down(EX_KEY_DOWN)) objects.monkey.transform.translation -= glm::vec3(0.0f, 0.0f, speed);
 
         camera.update_aspect_ratio(backend.get_swapchain_aspect_ratio());
 
@@ -172,26 +148,26 @@ int main() {
         backend.copy_buffer_data(&uniform_buffer, &uniform_data, sizeof(ex::vulkan::uniform_data));
 
         float rotation_speed = 50.0f * delta;
-        dragon.transform.rotation.y += rotation_speed;
-        monkey.transform.rotation.y += rotation_speed;
+        objects.dragon.transform.rotation.y += rotation_speed;
+        objects.monkey.transform.rotation.y += rotation_speed;
+        //objects.grid.transform.rotation.y += rotation_speed;
         
         backend.begin_render();
         if (!window.is_minimized()) {
-            backend.bind_pipeline(&textured_pipeline, &descriptor_set1);
+            backend.bind_pipeline(&pipelines.colored, descriptor_set.handle());
             
             ex::vulkan::push_data push_data = {};            
-            push_data.transform = dragon.transform.matrix();
-            backend.push_constant_data(&textured_pipeline, &push_data);
-            backend.draw_model(&dragon.model);
+            push_data.transform = objects.dragon.transform.matrix();
+            backend.push_constant_data(&pipelines.colored, &push_data);
+            backend.draw_model(&objects.dragon.model);
 
-            backend.bind_pipeline(&colored_pipeline, &descriptor_set);
-            push_data.transform = monkey.transform.matrix();
-            backend.push_constant_data(&colored_pipeline, &push_data);
-            backend.draw_model(&monkey.model);
+            push_data.transform = objects.monkey.transform.matrix();
+            backend.push_constant_data(&pipelines.colored, &push_data);
+            backend.draw_model(&objects.monkey.model);
 
-            push_data.transform = grid.transform.matrix();
-            backend.push_constant_data(&colored_pipeline, &push_data);
-            backend.draw_model(&grid.model);
+            push_data.transform = objects.grid.transform.matrix();
+            backend.push_constant_data(&pipelines.colored, &push_data);
+            backend.draw_model(&objects.grid.model);
         }
         backend.end_render();
         input.update();
@@ -199,20 +175,20 @@ int main() {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
-    backend.destroy_pipeline(&textured_pipeline);
-    backend.destroy_descriptor_set_layout(&descriptor_set_layout1);
-    backend.destroy_descriptor_pool(&descriptor_pool1);
+    backend.destroy_pipeline(&pipelines.textured);
+    descriptor_set_layout1.destroy(&backend);
+    descriptor_pool1.destroy(&backend);
     
-    backend.destroy_pipeline(&colored_pipeline);
-    backend.destroy_descriptor_set_layout(&descriptor_set_layout);
-    backend.destroy_descriptor_pool(&descriptor_pool);
+    backend.destroy_pipeline(&pipelines.colored);
+    descriptor_set_layout.destroy(&backend);
+    descriptor_pool.destroy(&backend);
 
     backend.destroy_buffer(&uniform_buffer);
-    
-    backend.destroy_model(&grid.model);
-    backend.destroy_model(&monkey.model);
-    backend.destroy_model(&dragon.model);
     backend.destroy_texture(&texture);
+    
+    backend.destroy_model(&objects.grid.model);
+    backend.destroy_model(&objects.monkey.model);
+    backend.destroy_model(&objects.dragon.model);
     
     backend.shutdown();
     window.destroy();

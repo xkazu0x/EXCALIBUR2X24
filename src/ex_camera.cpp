@@ -21,6 +21,12 @@ ex::camera::set_perspective(float fov, float aspect, float znear, float zfar) {
 }
 
 void
+ex::camera::translate(glm::vec3 translation) {
+    m_transform.translation += translation;
+    update_matrix_view();
+}
+
+void
 ex::camera::update_aspect_ratio(float aspect) {
     m_projection = glm::perspective(glm::radians(m_fov), aspect, m_znear, m_zfar);
 }

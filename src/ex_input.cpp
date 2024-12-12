@@ -1,8 +1,7 @@
 #include "ex_input.h"
-#include "ex_logger.h"
 
 void
-ex::input::initialize() {    
+ex::input::initialize() {
 }
 
 void
@@ -39,7 +38,6 @@ ex::input::process_mouse_move(int16_t x, int16_t y) {
     if (m_mouse_current.x != x || m_mouse_current.y != y) {
         m_mouse_current.x = x;
         m_mouse_current.y = y;
-        // EXDEBUG("MOUSE X: %d | MOUSE Y: %d", x, y);
     }
 }
 

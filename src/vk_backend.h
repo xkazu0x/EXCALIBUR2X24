@@ -4,8 +4,8 @@
 #include "ex_vertex.h"
 
 #include "vk_image.h"
-#include "vk_texture.h"
 #include "vk_model.h"
+#include "vk_texture.h"
 
 #include "vk_shader.h"
 #include "vk_pipeline.h"
@@ -53,19 +53,15 @@ namespace ex::vulkan {
 
         ex::vulkan::buffer create_buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
         void destroy_buffer(ex::vulkan::buffer *buffer);
-
-        VkDescriptorPool create_descriptor_pool(std::vector<VkDescriptorPoolSize> &pool_sizes);
-        VkDescriptorSetLayout create_descriptor_set_layout(std::vector<VkDescriptorSetLayoutBinding> &bindings);
-        void destroy_descriptor_pool(VkDescriptorPool *descriptor_pool);
-        void destroy_descriptor_set_layout(VkDescriptorSetLayout *descriptor_set_layout);
-        VkDescriptorSet allocate_descriptor_set(VkDescriptorPool *descriptor_pool, VkDescriptorSetLayout *descriptor_set_layout);
-        void update_descriptor_sets(std::vector<VkWriteDescriptorSet> &write_descriptor_sets);
         
         ex::vulkan::pipeline create_pipeline(const char *vert_file, const char *frag_file, VkDescriptorSetLayout *descriptor_set_layout);
         void destroy_pipeline(ex::vulkan::pipeline *pipeline);
         void bind_pipeline(ex::vulkan::pipeline *pipeline, VkDescriptorSet *descriptor_set);
         
         float get_swapchain_aspect_ratio();
+
+        VkAllocationCallbacks* allocator() { return m_allocator; }
+        VkDevice& logical_device() { return m_logical_device; }
         
     private:
         bool create_instance();
@@ -85,16 +81,17 @@ namespace ex::vulkan {
         VkCommandBuffer begin_single_time_commands();
         void end_single_time_commands(VkCommandBuffer command_buffer);        
         VkImageView create_image_view(VkImage image, VkImageViewType type, VkFormat format, VkImageAspectFlags aspect_flags);
-        
+
     private:
         ex::window *m_window;
-        
+
         VkAllocationCallbacks *m_allocator;
         VkInstance m_instance;
 #ifdef EXCALIBUR_DEBUG
         VkDebugUtilsMessengerEXT m_debug_messenger;
 #endif
         VkSurfaceKHR m_surface;
+
         VkDevice m_logical_device;
         VkPhysicalDevice m_physical_device;
         uint32_t m_graphics_queue_index;
