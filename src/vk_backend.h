@@ -53,9 +53,10 @@ namespace ex::vulkan {
         ex::vulkan::buffer create_buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
         void destroy_buffer(ex::vulkan::buffer *buffer);
         
-        ex::vulkan::pipeline create_pipeline(VkShaderModule vertex_module, VkShaderModule fragment_module, VkDescriptorSetLayout *descriptor_set_layout);
+        ex::vulkan::pipeline create_pipeline(VkShaderModule vertex_module, VkShaderModule fragment_module, std::vector<VkDescriptorSetLayout> &descriptor_set_layouts);
         void destroy_pipeline(ex::vulkan::pipeline *pipeline);
-        void bind_pipeline(ex::vulkan::pipeline *pipeline, VkDescriptorSet *descriptor_set);
+        void bind_pipeline(ex::vulkan::pipeline *pipeline);
+        void bind_descriptor_sets(ex::vulkan::pipeline *pipeline, std::vector<VkDescriptorSet> descriptor_sets);
         
         float get_swapchain_aspect_ratio();
 

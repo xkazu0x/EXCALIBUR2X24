@@ -34,6 +34,11 @@ struct vulkan_shaders {
     ex::vulkan::shader textured;
 } shaders;
 
+struct vulkan_descriptor_set {
+    ex::vulkan::descriptor_set uniform;
+    ex::vulkan::descriptor_set textures;
+} descriptor_sets;
+
 struct vulkan_pipelines {
     ex::vulkan::pipeline colored;
     ex::vulkan::pipeline textured;
@@ -85,34 +90,30 @@ int main() {
     
     ex::vulkan::descriptor_pool descriptor_pool;
     descriptor_pool.add_size(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
-    descriptor_pool.create(&backend);
-    ex::vulkan::descriptor_set_layout descriptor_set_layout;
-    descriptor_set_layout.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr);
-    descriptor_set_layout.create(&backend);
-    ex::vulkan::descriptor_set descriptor_set;
-    descriptor_set.allocate(&backend, &descriptor_pool, &descriptor_set_layout);
-    descriptor_set.add_write_set(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, uniform_buffer.get_descriptor_info());
-    descriptor_set.update(&backend);
+    descriptor_pool.add_size(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1);
+    descriptor_pool.create(&backend, 2);
+    
+    descriptor_sets.uniform.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr);
+    descriptor_sets.uniform.build_layout(&backend);
+    descriptor_sets.uniform.allocate(&backend, &descriptor_pool);
+    descriptor_sets.uniform.add_write_set(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, uniform_buffer.get_descriptor_info());
+    descriptor_sets.uniform.update(&backend);
 
-    ex::vulkan::descriptor_pool descriptor_pool1;
-    descriptor_pool1.add_size(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
-    descriptor_pool1.add_size(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1);
-    descriptor_pool1.create(&backend);
-    ex::vulkan::descriptor_set_layout descriptor_set_layout1;
-    descriptor_set_layout1.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr);
-    descriptor_set_layout1.add_binding(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr);
-    descriptor_set_layout1.create(&backend);
-    ex::vulkan::descriptor_set descriptor_set1;
-    descriptor_set1.allocate(&backend, &descriptor_pool1, &descriptor_set_layout1);
-    descriptor_set1.add_write_set(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, uniform_buffer.get_descriptor_info());
-    descriptor_set1.add_write_set(1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, texture.get_descriptor_info(), nullptr);
-    descriptor_set1.update(&backend);
+    descriptor_sets.textures.add_binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr);
+    descriptor_sets.textures.build_layout(&backend);
+    descriptor_sets.textures.allocate(&backend, &descriptor_pool);
+    descriptor_sets.textures.add_write_set(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, texture.get_descriptor_info(), nullptr);
+    descriptor_sets.textures.update(&backend);
 
     shaders.colored.create(&backend, "res/shaders/default.vert.spv", "res/shaders/colored.frag.spv");
     shaders.textured.create(&backend, "res/shaders/default.vert.spv", "res/shaders/textured.frag.spv");
-    
-    pipelines.colored = backend.create_pipeline(shaders.colored.vertex_module(), shaders.colored.fragment_module(), descriptor_set_layout.handle());
-    pipelines.textured = backend.create_pipeline(shaders.textured.vertex_module(), shaders.textured.fragment_module(), descriptor_set_layout1.handle());
+
+    std::vector<VkDescriptorSetLayout> descriptor_set_layouts;
+    descriptor_set_layouts.push_back(descriptor_sets.uniform.layout());
+    pipelines.colored = backend.create_pipeline(shaders.colored.vertex_module(), shaders.colored.fragment_module(), descriptor_set_layouts);
+
+    descriptor_set_layouts.push_back(descriptor_sets.textures.layout());
+    pipelines.textured = backend.create_pipeline(shaders.textured.vertex_module(), shaders.textured.fragment_module(), descriptor_set_layouts);
 
     shaders.colored.destroy(&backend);
     shaders.textured.destroy(&backend);
@@ -164,13 +165,21 @@ int main() {
         
         backend.begin_render();
         if (!window.is_minimized()) {
-            backend.bind_pipeline(&pipelines.colored, descriptor_set.handle());
+            backend.bind_pipeline(&pipelines.textured);
+            backend.bind_descriptor_sets(&pipelines.textured,
+                                         {descriptor_sets.uniform.handle(),
+                                          descriptor_sets.textures.handle()});
             
             ex::vulkan::push_data push_data = {};            
             push_data.transform = objects.dragon.transform.matrix();
-            backend.push_constant_data(&pipelines.colored, &push_data);
+            backend.push_constant_data(&pipelines.textured, &push_data);
             backend.draw_model(&objects.dragon.model);
 
+            backend.bind_pipeline(&pipelines.colored);
+            std::vector<VkDescriptorSet> sets;
+            sets.push_back(descriptor_sets.uniform.handle());
+            backend.bind_descriptor_sets(&pipelines.colored, sets);
+            
             push_data.transform = objects.monkey.transform.matrix();
             backend.push_constant_data(&pipelines.colored, &push_data);
             backend.draw_model(&objects.monkey.model);
@@ -186,11 +195,10 @@ int main() {
     }
 
     backend.destroy_pipeline(&pipelines.textured);
-    descriptor_set_layout1.destroy(&backend);
-    descriptor_pool1.destroy(&backend);
-    
     backend.destroy_pipeline(&pipelines.colored);
-    descriptor_set_layout.destroy(&backend);
+    
+    descriptor_sets.textures.destroy_layout(&backend);
+    descriptor_sets.uniform.destroy_layout(&backend);
     descriptor_pool.destroy(&backend);
 
     backend.destroy_buffer(&uniform_buffer);

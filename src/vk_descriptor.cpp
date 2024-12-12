@@ -11,12 +11,12 @@ ex::vulkan::descriptor_pool::add_size(VkDescriptorType type,
 }
 
 void
-ex::vulkan::descriptor_pool::create(ex::vulkan::backend *backend) {
+ex::vulkan::descriptor_pool::create(ex::vulkan::backend *backend, uint32_t max_sets) {
     VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
     descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     descriptor_pool_create_info.pNext = nullptr;
     descriptor_pool_create_info.flags = 0;
-    descriptor_pool_create_info.maxSets = 1;
+    descriptor_pool_create_info.maxSets = max_sets;
     descriptor_pool_create_info.poolSizeCount = static_cast<uint32_t>(m_pool_sizes.size());
     descriptor_pool_create_info.pPoolSizes = m_pool_sizes.data();
     VK_CHECK(vkCreateDescriptorPool(backend->logical_device(),
@@ -34,11 +34,11 @@ ex::vulkan::descriptor_pool::destroy(ex::vulkan::backend *backend) {
 }
 
 void
-ex::vulkan::descriptor_set_layout::add_binding(uint32_t binding,
-                                               VkDescriptorType type,
-                                               uint32_t count,
-                                               VkShaderStageFlags stage_flags,
-                                               const VkSampler *immutable_samplers) {
+ex::vulkan::descriptor_set::add_binding(uint32_t binding,
+                                        VkDescriptorType type,
+                                        uint32_t count,
+                                        VkShaderStageFlags stage_flags,
+                                        const VkSampler *immutable_samplers) {
     VkDescriptorSetLayoutBinding descriptor_set_layout_binding = {};
     descriptor_set_layout_binding.binding = binding;
     descriptor_set_layout_binding.descriptorType = type;
@@ -49,7 +49,7 @@ ex::vulkan::descriptor_set_layout::add_binding(uint32_t binding,
 }
 
 void
-ex::vulkan::descriptor_set_layout::create(ex::vulkan::backend *backend) {
+ex::vulkan::descriptor_set::build_layout(ex::vulkan::backend *backend) {
     VkDescriptorSetLayoutCreateInfo descriptor_set_layout_create_info = {};
     descriptor_set_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     descriptor_set_layout_create_info.pNext = nullptr;
@@ -59,27 +59,26 @@ ex::vulkan::descriptor_set_layout::create(ex::vulkan::backend *backend) {
     VK_CHECK(vkCreateDescriptorSetLayout(backend->logical_device(),
                                          &descriptor_set_layout_create_info,
                                          backend->allocator(),
-                                         &m_handle));
+                                         &m_layout));
 }
 
 void
-ex::vulkan::descriptor_set_layout::destroy(ex::vulkan::backend *backend) {
+ex::vulkan::descriptor_set::destroy_layout(ex::vulkan::backend *backend) {
     vkDeviceWaitIdle(backend->logical_device());
-    if (m_handle) vkDestroyDescriptorSetLayout(backend->logical_device(),
-                                               m_handle,
+    if (m_layout) vkDestroyDescriptorSetLayout(backend->logical_device(),
+                                               m_layout,
                                                backend->allocator());
 }
 
 void
 ex::vulkan::descriptor_set::allocate(ex::vulkan::backend *backend,
-                                     ex::vulkan::descriptor_pool *pool,
-                                     ex::vulkan::descriptor_set_layout *set_layout) {    
+                                     ex::vulkan::descriptor_pool *pool) {
     VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {};
     descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     descriptor_set_allocate_info.pNext = nullptr;
     descriptor_set_allocate_info.descriptorPool = pool->handle();
     descriptor_set_allocate_info.descriptorSetCount = 1;
-    descriptor_set_allocate_info.pSetLayouts = set_layout->handle();
+    descriptor_set_allocate_info.pSetLayouts = &m_layout;
     VK_CHECK(vkAllocateDescriptorSets(backend->logical_device(),
                                       &descriptor_set_allocate_info,
                                       &m_handle));

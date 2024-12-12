@@ -10,7 +10,7 @@ ex::vulkan::pipeline::create(const std::vector<VkPushConstantRange> &push_consta
                              VkPrimitiveTopology topology,
                              VkExtent2D extent,
                              VkPolygonMode polygon_mode,
-                             VkDescriptorSetLayout *descriptor_set_layout,
+                             std::vector<VkDescriptorSetLayout> &descriptor_set_layouts,
                              VkRenderPass render_pass,
                              uint32_t subpass,
                              VkDevice logical_device,
@@ -36,8 +36,8 @@ ex::vulkan::pipeline::create(const std::vector<VkPushConstantRange> &push_consta
     pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeline_layout_create_info.pNext = nullptr;
     pipeline_layout_create_info.flags = 0;
-    pipeline_layout_create_info.setLayoutCount = 1;
-    pipeline_layout_create_info.pSetLayouts = descriptor_set_layout;
+    pipeline_layout_create_info.setLayoutCount = static_cast<uint32_t>(descriptor_set_layouts.size());
+    pipeline_layout_create_info.pSetLayouts = descriptor_set_layouts.data();
     pipeline_layout_create_info.pushConstantRangeCount = static_cast<uint32_t>(push_constant_range.size());
     pipeline_layout_create_info.pPushConstantRanges = push_constant_range.data();
     VK_CHECK(vkCreatePipelineLayout(logical_device,
@@ -89,15 +89,15 @@ ex::vulkan::pipeline::bind(VkCommandBuffer command_buffer,
 }
 
 void
-ex::vulkan::pipeline::bind_descriptor(VkCommandBuffer command_buffer,
-                                      VkPipelineBindPoint bind_point,
-                                      VkDescriptorSet *descriptor_set) {
+ex::vulkan::pipeline::bind_descriptor_sets(VkCommandBuffer command_buffer,
+                                           VkPipelineBindPoint bind_point,
+                                           std::vector<VkDescriptorSet> descriptor_sets) {
     vkCmdBindDescriptorSets(command_buffer,
                             bind_point,
                             m_layout,
                             0,
-                            1,
-                            descriptor_set,
+                            descriptor_sets.size(),
+                            descriptor_sets.data(),
                             0,
                             nullptr);
 }

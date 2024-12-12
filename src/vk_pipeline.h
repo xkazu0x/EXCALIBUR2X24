@@ -15,7 +15,7 @@ namespace ex::vulkan {
                     VkPrimitiveTopology topology,
                     VkExtent2D extent,
                     VkPolygonMode polygon_mode,
-                    VkDescriptorSetLayout *descriptor_set_layout,
+                    std::vector<VkDescriptorSetLayout> &descriptor_set_layouts,
                     VkRenderPass render_pass,
                     uint32_t subpass,
                     VkDevice logical_device,
@@ -25,9 +25,9 @@ namespace ex::vulkan {
         
         void bind(VkCommandBuffer command_buffer,
                   VkPipelineBindPoint bind_point);
-        void bind_descriptor(VkCommandBuffer command_buffer,
-                             VkPipelineBindPoint bind_point,
-                             VkDescriptorSet *descriptor_set);
+        void bind_descriptor_sets(VkCommandBuffer command_buffer,
+                                  VkPipelineBindPoint bind_point,
+                                  std::vector<VkDescriptorSet> descriptor_sets);
         void update_dynamic(VkCommandBuffer command_buffer,
                             VkExtent2D extent);
         
