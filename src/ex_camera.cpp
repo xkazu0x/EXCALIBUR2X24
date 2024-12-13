@@ -1,17 +1,31 @@
 #include "ex_camera.h"
+#include <glm/gtx/vector_angle.hpp>
 
 void
-ex::camera::set_translation(glm::vec3 translation) {
-    m_transform.translation = translation;
-    update_matrix_view();
+ex::camera::set_position(glm::vec3 position) {
+    m_position = position;
 }
 
 void
-ex::camera::set_rotation(glm::vec3 rotation) {
-    m_transform.rotation = rotation;
-    update_matrix_view();
+ex::camera::set_target(glm::vec3 target) {
+    m_target = target;
 }
-        
+
+void
+ex::camera::set_up(glm::vec3 up) {
+    m_up = up;
+}
+
+void
+ex::camera::set_speed(float speed) {
+    m_speed = speed;
+}
+
+void
+ex::camera::set_sens(float sens) {
+    m_sens = sens;
+}
+
 void
 ex::camera::set_perspective(float fov, float aspect, float znear, float zfar) {
     m_fov = fov;
@@ -21,29 +35,41 @@ ex::camera::set_perspective(float fov, float aspect, float znear, float zfar) {
 }
 
 void
-ex::camera::translate(glm::vec3 translation) {
-    m_transform.translation += translation;
-    update_matrix_view();
-}
-
-void
 ex::camera::update_aspect_ratio(float aspect) {
     m_projection = glm::perspective(glm::radians(m_fov), aspect, m_znear, m_zfar);
 }
 
-glm::mat4
-ex::camera::get_view() { return m_view; }
-
-glm::mat4
-ex::camera::get_projection() { return m_projection; }
-
 void
-ex::camera::update_matrix_view() {
-    m_view = glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f),
-                         glm::vec3(0.0f, 0.0f, 1.0f),
-                         glm::vec3(0.0f, -1.0f, 0.0f));
-    m_view = glm::rotate(m_view, glm::radians(m_transform.rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
-    m_view = glm::rotate(m_view, glm::radians(m_transform.rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
-    m_view = glm::rotate(m_view, glm::radians(m_transform.rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
-    m_view = glm::translate(m_view, m_transform.translation);
+ex::camera::update(ex::input *input, float delta) {
+    if (input->key_down(EX_KEY_W)) {
+        m_position.x += m_speed * delta * -m_target.x;
+        m_position.z += m_speed * delta * -m_target.z;
+    }
+    
+    if (input->key_down(EX_KEY_S)) {
+        m_position.x += m_speed * delta * m_target.x;
+        m_position.z += m_speed * delta * m_target.z;
+    }
+    
+    if (input->key_down(EX_KEY_A)) m_position += m_speed * delta * glm::normalize(glm::cross(m_target, m_up));
+    if (input->key_down(EX_KEY_D)) m_position += m_speed * delta * -glm::normalize(glm::cross(m_target, m_up));
+
+    if (input->key_down(EX_KEY_I)) {
+        glm::vec3 new_target = glm::rotate(m_target, glm::radians(m_sens * delta), glm::normalize(glm::cross(m_target, m_up)));
+        if (!(glm::angle(new_target, m_up) <= glm::radians(5.0f) || glm::angle(new_target, -m_up) <= glm::radians(5.0f))) {
+            m_target = new_target;
+        }
+    }
+    
+    if (input->key_down(EX_KEY_K)) {
+        glm::vec3 new_target = glm::rotate(m_target, glm::radians(-m_sens * delta), glm::normalize(glm::cross(m_target, m_up)));
+        if (!(glm::angle(new_target, m_up) <= glm::radians(5.0f) || glm::angle(new_target, -m_up) <= glm::radians(5.0f))) {
+            m_target = new_target;
+        }
+    }
+
+    if (input->key_down(EX_KEY_J)) m_target = glm::rotate(m_target, glm::radians(m_sens * delta), m_up);
+    if (input->key_down(EX_KEY_L)) m_target = glm::rotate(m_target, glm::radians(-m_sens * delta), m_up);
+
+    m_view = glm::lookAt(m_position, m_position - m_target, m_up);
 }

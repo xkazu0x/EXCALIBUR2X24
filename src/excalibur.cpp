@@ -163,44 +163,43 @@ int main() {
 
     _shaders.colored.destroy(&backend);
     _shaders.textured.destroy(&backend);
-    
-    ex::camera camera = {};
-    camera.set_translation(glm::vec3(0.0f, -2.0f, 4.0f));
-    camera.set_rotation(glm::vec3(-15.0f, 0.0f, 0.0f));
-    camera.set_perspective(80.0f, (float) window.width() / (float) window.height(), 0.1f, 20.0f);
 
     EXINFO("-=+INITIALIZED+=-");
-    
+    // NOTE: camera orientation is inverted
+    ex::camera camera = {};
+    camera.set_position({0.0f, 2.0f, 4.0f});
+    camera.set_target({0.0f, 0.0f, 1.0f});
+    camera.set_up({0.0f, -1.0f, 0.0f});
+    camera.set_perspective(80.0f, (float) window.width() / (float) window.height(), 0.1f, 20.0f);
+    camera.set_speed(2.5f);
+    camera.set_sens(100.0f);
+
     float light_speed = 0;
-    auto last_time = std::chrono::high_resolution_clock::now();
+    
+    using clock = std::chrono::high_resolution_clock;
+    auto last_time = clock::now();
+        
     while (window.is_active()) {        
         window.update();
-
-        auto now = std::chrono::high_resolution_clock::now();
-        float delta = std::chrono::duration<float, std::chrono::seconds::period>(now - last_time).count();
-        last_time = now;
         
+        auto now = clock::now();
+        auto delta = std::chrono::duration<float, std::chrono::seconds::period>(now - last_time).count();
+        last_time = now;
+
         if (input.key_pressed(EX_KEY_ESCAPE)) window.close();
         if (input.key_pressed(EX_KEY_F1)) window.change_display_mode();
         
         if (input.button_pressed(EX_BUTTON_LEFT)) EXDEBUG("MOUSE LEFT BUTTON PRESSED");
         if (input.button_pressed(EX_BUTTON_RIGHT)) EXDEBUG("MOUSE RIGHT BUTTON PRESSED");
         if (input.button_pressed(EX_BUTTON_MIDDLE)) EXDEBUG("MOUSE MIDDLE BUTTON PRESSED");
-
-        float speed = 2.5f * delta;
-        if (input.key_down(EX_KEY_A)) camera.translate({speed, 0.0f, 0.0f});
-        if (input.key_down(EX_KEY_D)) camera.translate({-speed, 0.0f, 0.0f});
         
-        if (input.key_down(EX_KEY_LEFT)) objects.monkey.transform.translation -= glm::vec3(speed, 0.0f, 0.0f);
-        if (input.key_down(EX_KEY_RIGHT)) objects.monkey.transform.translation += glm::vec3(speed, 0.0f, 0.0f);
-        if (input.key_down(EX_KEY_UP)) objects.monkey.transform.translation += glm::vec3(0.0f, 0.0f, speed);
-        if (input.key_down(EX_KEY_DOWN)) objects.monkey.transform.translation -= glm::vec3(0.0f, 0.0f, speed);
-
+        camera.update(&input, delta);
         camera.update_aspect_ratio(backend.get_swapchain_aspect_ratio());
-
+        
         ex::ubo ubo = {};
         ubo.view = camera.get_view();
         ubo.projection = camera.get_projection();
+        
         light_speed += 100.0f * delta;
         ubo.light_pos = glm::vec3(0.0f, 3.0f, 6.0f);
         ubo.light_pos = glm::rotate(ubo.light_pos, glm::radians(light_speed) , glm::vec3(0.0f, 1.0f, 0.0f));
@@ -213,6 +212,12 @@ int main() {
         objects.dragon.transform.rotation.y += rotation_speed;
         objects.monkey.transform.rotation.y += rotation_speed;
         //objects.grid.transform.rotation.y += rotation_speed;
+
+        float speed = 2.5f * delta;
+        if (input.key_down(EX_KEY_LEFT)) objects.monkey.transform.translation -= glm::vec3(speed, 0.0f, 0.0f);
+        if (input.key_down(EX_KEY_RIGHT)) objects.monkey.transform.translation += glm::vec3(speed, 0.0f, 0.0f);
+        if (input.key_down(EX_KEY_UP)) objects.monkey.transform.translation += glm::vec3(0.0f, 0.0f, speed);
+        if (input.key_down(EX_KEY_DOWN)) objects.monkey.transform.translation -= glm::vec3(0.0f, 0.0f, speed);
         
         backend.begin_render();
         if (!window.is_minimized()) {
@@ -232,13 +237,14 @@ int main() {
             _models.grid.bind(backend.current_frame());
             _models.grid.draw(backend.current_frame());
 
-            sets.push_back(_descriptor_sets.textures.handle());
-            _pipelines.textured.bind(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS);
-            _pipelines.textured.update_dynamic(backend.current_frame(), backend.swapchain_extent());
-            _pipelines.textured.bind_descriptor_sets(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS, sets);
+            // sets.push_back(_descriptor_sets.textures.handle());
+            // _pipelines.textured.bind(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS);
+            // _pipelines.textured.update_dynamic(backend.current_frame(), backend.swapchain_extent());
+            // _pipelines.textured.bind_descriptor_sets(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS, sets);
             
             constants.transform = objects.dragon.transform.matrix();
-            _pipelines.textured.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT, &constants);
+            //_pipelines.textured.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT, &constants);
+            _pipelines.colored.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT, &constants);
             _models.dragon.bind(backend.current_frame());
             _models.dragon.draw(backend.current_frame());
         }
@@ -247,6 +253,7 @@ int main() {
         input.update();
         
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        //window.sleep(1);
     }
     
     EXINFO("-=+SHUTTING_DOWN+=-");
