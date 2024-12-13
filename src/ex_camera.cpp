@@ -42,13 +42,15 @@ ex::camera::update_aspect_ratio(float aspect) {
 void
 ex::camera::update(ex::input *input, float delta) {
     if (input->key_down(EX_KEY_W)) {
-        m_position.x += m_speed * delta * -m_target.x;
-        m_position.z += m_speed * delta * -m_target.z;
+        glm::vec3 left = glm::normalize(glm::cross(m_target, m_up));
+        glm::vec3 forward = glm::normalize(glm::cross(left, m_up));        
+        m_position += m_speed * delta * forward;
     }
     
     if (input->key_down(EX_KEY_S)) {
-        m_position.x += m_speed * delta * m_target.x;
-        m_position.z += m_speed * delta * m_target.z;
+        glm::vec3 left = glm::normalize(glm::cross(m_target, m_up));
+        glm::vec3 forward = glm::normalize(glm::cross(left, m_up));
+        m_position += m_speed * delta * -forward;
     }
     
     if (input->key_down(EX_KEY_A)) m_position += m_speed * delta * glm::normalize(glm::cross(m_target, m_up));
