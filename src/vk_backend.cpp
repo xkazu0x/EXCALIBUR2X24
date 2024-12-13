@@ -801,172 +801,197 @@ ex::vulkan::backend::allocate_command_buffers() {
                                       m_command_buffers.data()));
 }
 
-void
-ex::vulkan::backend::copy_buffer_data(ex::vulkan::buffer *buffer, const void *source, VkDeviceSize size) {
-    buffer->copy_data(m_logical_device, source, size);
-}
+// void
+// ex::vulkan::backend::copy_buffer_data(ex::vulkan::buffer *buffer, const void *source, VkDeviceSize size) {
+//     buffer->copy_data(m_logical_device, source, size);
+// }
 
-ex::vulkan::texture
-ex::vulkan::backend::create_texture(const char *file) {
-    ex::vulkan::texture out_texture = {};
+// ex::vulkan::texture
+// ex::vulkan::backend::create_texture(const char *file) {
+//     ex::vulkan::texture out_texture = {};
     
-    int width, height, channels;
-    stbi_uc *texture_data = stbi_load(file, &width, &height, &channels, STBI_rgb_alpha);
-    if (!texture_data) {
-        throw std::runtime_error("Failed to load texture image");
+//     int width, height, channels;
+//     stbi_uc *texture_data = stbi_load(file, &width, &height, &channels, STBI_rgb_alpha);
+//     if (!texture_data) {
+//         throw std::runtime_error("Failed to load texture image");
+//     }
+
+//     // COPY IMAGE DATA TO STAGING BUFFER
+//     uint32_t texture_width = static_cast<uint32_t>(width);
+//     uint32_t texture_height = static_cast<uint32_t>(height);
+//     VkDeviceSize texture_size = sizeof(uint32_t) * texture_width * texture_height;
+
+//     auto staging_buffer_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+//     auto staging_buffer_properties =
+//         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+//         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+//     ex::vulkan::buffer staging_buffer;
+//     staging_buffer.create(m_logical_device,
+//                           m_physical_device,
+//                           m_allocator,
+//                           texture_size,
+//                           staging_buffer_usage,
+//                           staging_buffer_properties);
+//     staging_buffer.copy_data(m_logical_device,
+//                              texture_data,
+//                              texture_size);
+    
+//     stbi_image_free(texture_data);
+    
+//     // CREATE IMAGE
+//     out_texture.image.create(m_logical_device,
+//                              m_physical_device,
+//                              m_allocator,
+//                              VK_IMAGE_TYPE_2D,
+//                              VK_FORMAT_R8G8B8A8_UNORM,
+//                              { texture_width, texture_height },
+//                              VK_IMAGE_TILING_OPTIMAL,
+//                              VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+//                              VK_IMAGE_LAYOUT_PREINITIALIZED);
+
+//     VkCommandBuffer command_buffer = begin_single_time_commands();
+//     out_texture.image.change_layout(command_buffer,
+//                                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+//                                     VK_IMAGE_ASPECT_COLOR_BIT);    
+//     end_single_time_commands(command_buffer);
+
+//     VkCommandBuffer copy_command_buffer = begin_single_time_commands();
+//     out_texture.image.copy_buffer(copy_command_buffer,
+//                                   staging_buffer.handle(),
+//                                   VK_IMAGE_ASPECT_COLOR_BIT,
+//                                   { texture_width, texture_height });
+//     end_single_time_commands(copy_command_buffer);
+
+//     VkCommandBuffer shader_command_buffer = begin_single_time_commands();
+//     out_texture.image.change_layout(shader_command_buffer,
+//                                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+//                                     VK_IMAGE_ASPECT_COLOR_BIT);
+//     end_single_time_commands(shader_command_buffer);
+
+//     staging_buffer.destroy(m_logical_device, m_allocator);
+//     out_texture.image.create_view(m_logical_device,
+//                                   m_allocator,
+//                                   VK_IMAGE_VIEW_TYPE_2D,
+//                                   VK_IMAGE_ASPECT_COLOR_BIT);
+    
+//     // CREATE SAMPLER
+//     VkSamplerCreateInfo sampler_create_info = {};
+//     sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+//     sampler_create_info.pNext = nullptr;
+//     sampler_create_info.flags = 0;
+//     sampler_create_info.magFilter = VK_FILTER_LINEAR;
+//     sampler_create_info.minFilter = VK_FILTER_LINEAR;
+//     sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+//     sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+//     sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+//     sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+//     sampler_create_info.mipLodBias = 0.0f;
+//     sampler_create_info.anisotropyEnable = VK_TRUE;
+//     sampler_create_info.maxAnisotropy = 16;
+//     sampler_create_info.compareEnable = VK_FALSE;
+//     sampler_create_info.compareOp = VK_COMPARE_OP_ALWAYS;
+//     sampler_create_info.minLod = 0.0f;
+//     sampler_create_info.maxLod = 0.0f;
+//     sampler_create_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+//     sampler_create_info.unnormalizedCoordinates = VK_FALSE;
+//     VK_CHECK(vkCreateSampler(m_logical_device,
+//                              &sampler_create_info,
+//                              m_allocator,
+//                              &out_texture.sampler));
+
+//     return out_texture;
+// }
+
+// void
+// ex::vulkan::backend::destroy_texture(ex::vulkan::texture *texture) {
+//     vkDeviceWaitIdle(m_logical_device);
+//     if (texture->sampler) vkDestroySampler(m_logical_device, texture->sampler, m_allocator);
+//     texture->image.destroy(m_logical_device, m_allocator);
+// }
+
+// ex::vulkan::model
+// ex::vulkan::backend::create_model(const char *file) {
+//     ex::vulkan::model out_model = {};
+//     out_model.load(file);
+//     out_model.create(m_logical_device,
+//                      m_physical_device,
+//                      m_allocator,
+//                      m_command_pool,
+//                      m_graphics_queue);
+    
+//     return out_model;
+// }
+
+// ex::vulkan::model
+// ex::vulkan::backend::create_model_from_array(std::vector<ex::vertex> &vertices,
+//                                              std::vector<uint32_t> &indices) {
+//     ex::vulkan::model out_model = {};
+//     out_model.load_array(vertices, indices);
+//     out_model.create(m_logical_device,
+//                      m_physical_device,
+//                      m_allocator,
+//                      m_command_pool,
+//                      m_graphics_queue);
+    
+//     return out_model;
+// }
+
+// void
+// ex::vulkan::backend::destroy_model(ex::vulkan::model *model) {
+//     vkDeviceWaitIdle(m_logical_device);
+//     model->destroy(m_logical_device, m_allocator);
+// }
+
+// void
+// ex::vulkan::backend::draw_model(ex::vulkan::model *model) {
+//     model->bind(m_command_buffers[m_next_image_index]);
+//     model->draw(m_command_buffers[m_next_image_index]);
+// }
+
+// ex::vulkan::buffer
+// ex::vulkan::backend::create_buffer(VkDeviceSize size,
+//                                    VkBufferUsageFlags usage,
+//                                    VkMemoryPropertyFlags properties) {
+//     ex::vulkan::buffer out_buffer;
+//     out_buffer.create(m_logical_device,
+//                       m_physical_device,
+//                       m_allocator,
+//                       size,
+//                       usage,
+//                       properties);
+
+//     return out_buffer;
+// }
+
+// void
+// ex::vulkan::backend::destroy_buffer(ex::vulkan::buffer *buffer) {
+//     vkDeviceWaitIdle(m_logical_device);
+//     buffer->destroy(m_logical_device, m_allocator);
+// }
+
+uint32_t
+ex::vulkan::backend::get_memory_type_index(VkMemoryRequirements memory_requirements,
+                                           VkMemoryPropertyFlags properties) {
+    VkPhysicalDeviceMemoryProperties memory_properties;
+    vkGetPhysicalDeviceMemoryProperties(m_physical_device, &memory_properties);
+    
+    uint32_t index = 0;
+    
+    bool found = false;
+    for (uint32_t i = 0; i < memory_properties.memoryTypeCount; ++i) {
+        if ((memory_requirements.memoryTypeBits & (1 << i)) &&
+            (memory_properties.memoryTypes[i].propertyFlags & properties) == properties) {
+            found = true;
+            index = i;
+            break;
+        }
+    }
+    if (!found) {
+        EXFATAL("Failed to find memory type index");
+        std::runtime_error("Failed to find memory type index");
     }
 
-    // COPY IMAGE DATA TO STAGING BUFFER
-    uint32_t texture_width = static_cast<uint32_t>(width);
-    uint32_t texture_height = static_cast<uint32_t>(height);
-    VkDeviceSize texture_size = sizeof(uint32_t) * texture_width * texture_height;
-
-    auto staging_buffer_usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-    auto staging_buffer_properties =
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-        VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
-    ex::vulkan::buffer staging_buffer;
-    staging_buffer.create(m_logical_device,
-                          m_physical_device,
-                          m_allocator,
-                          texture_size,
-                          staging_buffer_usage,
-                          staging_buffer_properties);
-    staging_buffer.copy_data(m_logical_device,
-                             texture_data,
-                             texture_size);
-    
-    stbi_image_free(texture_data);
-    
-    // CREATE IMAGE
-    out_texture.image.create(m_logical_device,
-                             m_physical_device,
-                             m_allocator,
-                             VK_IMAGE_TYPE_2D,
-                             VK_FORMAT_R8G8B8A8_UNORM,
-                             { texture_width, texture_height },
-                             VK_IMAGE_TILING_OPTIMAL,
-                             VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-                             VK_IMAGE_LAYOUT_PREINITIALIZED);
-
-    VkCommandBuffer command_buffer = begin_single_time_commands();
-    out_texture.image.change_layout(command_buffer,
-                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                    VK_IMAGE_ASPECT_COLOR_BIT);    
-    end_single_time_commands(command_buffer);
-
-    VkCommandBuffer copy_command_buffer = begin_single_time_commands();
-    out_texture.image.copy_buffer(copy_command_buffer,
-                                  staging_buffer.handle(),
-                                  VK_IMAGE_ASPECT_COLOR_BIT,
-                                  { texture_width, texture_height });
-    end_single_time_commands(copy_command_buffer);
-
-    VkCommandBuffer shader_command_buffer = begin_single_time_commands();
-    out_texture.image.change_layout(shader_command_buffer,
-                                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                    VK_IMAGE_ASPECT_COLOR_BIT);
-    end_single_time_commands(shader_command_buffer);
-
-    staging_buffer.destroy(m_logical_device, m_allocator);
-    out_texture.image.create_view(m_logical_device,
-                                  m_allocator,
-                                  VK_IMAGE_VIEW_TYPE_2D,
-                                  VK_IMAGE_ASPECT_COLOR_BIT);
-    
-    // CREATE SAMPLER
-    VkSamplerCreateInfo sampler_create_info = {};
-    sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    sampler_create_info.pNext = nullptr;
-    sampler_create_info.flags = 0;
-    sampler_create_info.magFilter = VK_FILTER_LINEAR;
-    sampler_create_info.minFilter = VK_FILTER_LINEAR;
-    sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    sampler_create_info.mipLodBias = 0.0f;
-    sampler_create_info.anisotropyEnable = VK_TRUE;
-    sampler_create_info.maxAnisotropy = 16;
-    sampler_create_info.compareEnable = VK_FALSE;
-    sampler_create_info.compareOp = VK_COMPARE_OP_ALWAYS;
-    sampler_create_info.minLod = 0.0f;
-    sampler_create_info.maxLod = 0.0f;
-    sampler_create_info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-    sampler_create_info.unnormalizedCoordinates = VK_FALSE;
-    VK_CHECK(vkCreateSampler(m_logical_device,
-                             &sampler_create_info,
-                             m_allocator,
-                             &out_texture.sampler));
-
-    return out_texture;
-}
-
-void
-ex::vulkan::backend::destroy_texture(ex::vulkan::texture *texture) {
-    vkDeviceWaitIdle(m_logical_device);
-    if (texture->sampler) vkDestroySampler(m_logical_device, texture->sampler, m_allocator);
-    texture->image.destroy(m_logical_device, m_allocator);
-}
-
-ex::vulkan::model
-ex::vulkan::backend::create_model(const char *file) {
-    ex::vulkan::model out_model = {};
-    out_model.load(file);
-    out_model.create(m_logical_device,
-                     m_physical_device,
-                     m_allocator,
-                     m_command_pool,
-                     m_graphics_queue);
-    
-    return out_model;
-}
-
-ex::vulkan::model
-ex::vulkan::backend::create_model_from_array(std::vector<ex::vertex> &vertices,
-                                             std::vector<uint32_t> &indices) {
-    ex::vulkan::model out_model = {};
-    out_model.load_array(vertices, indices);
-    out_model.create(m_logical_device,
-                     m_physical_device,
-                     m_allocator,
-                     m_command_pool,
-                     m_graphics_queue);
-    
-    return out_model;
-}
-
-void
-ex::vulkan::backend::destroy_model(ex::vulkan::model *model) {
-    vkDeviceWaitIdle(m_logical_device);
-    model->destroy(m_logical_device, m_allocator);
-}
-
-void
-ex::vulkan::backend::draw_model(ex::vulkan::model *model) {
-    model->bind(m_command_buffers[m_next_image_index]);
-    model->draw(m_command_buffers[m_next_image_index]);
-}
-
-ex::vulkan::buffer
-ex::vulkan::backend::create_buffer(VkDeviceSize size,
-                                   VkBufferUsageFlags usage,
-                                   VkMemoryPropertyFlags properties) {
-    ex::vulkan::buffer out_buffer;
-    out_buffer.create(m_logical_device,
-                      m_physical_device,
-                      m_allocator,
-                      size,
-                      usage,
-                      properties);
-
-    return out_buffer;
-}
-
-void
-ex::vulkan::backend::destroy_buffer(ex::vulkan::buffer *buffer) {
-    vkDeviceWaitIdle(m_logical_device);
-    buffer->destroy(m_logical_device, m_allocator);
+    return index;
 }
 
 float

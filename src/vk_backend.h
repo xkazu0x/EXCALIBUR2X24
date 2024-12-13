@@ -4,9 +4,8 @@
 #include "ex_vertex.h"
 
 #include "vk_image.h"
-#include "vk_model.h"
-#include "vk_texture.h"
-#include "vk_buffer.h"
+//#include "vk_model.h"
+//#include "vk_texture.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
@@ -20,12 +19,6 @@
 #include <memory>
 
 namespace ex::vulkan {
-    struct uniform_data {
-        glm::mat4 view;
-        glm::mat4 projection;
-        glm::vec3 light_pos;
-    };
-    
     class backend {
     public:
         bool initialize(ex::window *window);
@@ -33,19 +26,13 @@ namespace ex::vulkan {
         void begin_render();
         void end_render();
         
-        void copy_buffer_data(ex::vulkan::buffer *buffer, const void *source, VkDeviceSize size);
-
-        ex::vulkan::texture create_texture(const char *file);
-        void destroy_texture(ex::vulkan::texture *texture);
+        //ex::vulkan::texture create_texture(const char *file);
+        //void destroy_texture(ex::vulkan::texture *texture);
         
-        ex::vulkan::model create_model(const char *file);
-        ex::vulkan::model create_model_from_array(std::vector<ex::vertex> &vertices, std::vector<uint32_t> &indices);
-        void destroy_model(ex::vulkan::model *model);
-        void draw_model(ex::vulkan::model *model);
+        VkCommandBuffer begin_single_time_commands();
+        void end_single_time_commands(VkCommandBuffer command_buffer);
 
-        ex::vulkan::buffer create_buffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
-        void destroy_buffer(ex::vulkan::buffer *buffer);
-                
+        uint32_t get_memory_type_index(VkMemoryRequirements memory_requirements, VkMemoryPropertyFlags properties);
         float get_swapchain_aspect_ratio();
         VkCommandBuffer current_frame() { return m_command_buffers[m_next_image_index]; }
         
@@ -70,8 +57,6 @@ namespace ex::vulkan {
         void create_sync_structures();
         void allocate_command_buffers();
         
-        VkCommandBuffer begin_single_time_commands();
-        void end_single_time_commands(VkCommandBuffer command_buffer);        
         VkImageView create_image_view(VkImage image, VkImageViewType type, VkFormat format, VkImageAspectFlags aspect_flags);
 
     private:

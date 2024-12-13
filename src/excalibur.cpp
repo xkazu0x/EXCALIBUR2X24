@@ -3,8 +3,10 @@
 #include "ex_input.h"
 #include "ex_component.hpp"
 #include "ex_camera.h"
+#include "ex_mesh.h"
 
 #include "vk_backend.h"
+#include "vk_model.h"
 #include "vk_shader.h"
 #include "vk_descriptor.h"
 #include "vk_pipeline.h"
@@ -26,6 +28,12 @@ namespace ex {
     struct push_constants {
         glm::mat4 transform;
     };
+
+    struct ubo {
+        glm::mat4 view;
+        glm::mat4 projection;
+        glm::vec3 light_pos;
+    };
 }
 
 struct objects {
@@ -34,20 +42,32 @@ struct objects {
     ex::object grid;
 } objects;
 
+struct meshes {
+    ex::mesh dragon;
+    ex::mesh monkey;
+    ex::mesh grid;
+} _meshes;
+
+struct vulkan_models {
+    ex::vulkan::model dragon;
+    ex::vulkan::model monkey;
+    ex::vulkan::model grid;
+} _models;
+
 struct vulkan_shaders {
     ex::vulkan::shader colored;
     ex::vulkan::shader textured;
-} shaders;
+} _shaders;
 
 struct vulkan_descriptor_sets {
     ex::vulkan::descriptor_set uniform;
     ex::vulkan::descriptor_set textures;
-} descriptor_sets;
+} _descriptor_sets;
 
 struct vulkan_pipelines {
     ex::vulkan::pipeline colored;
     ex::vulkan::pipeline textured;
-} pipelines;
+} _pipelines;
 
 void create_grid(uint32_t size, std::vector<ex::vertex> *vertices, std::vector<uint32_t> *indices);
 
@@ -62,84 +82,93 @@ int main() {
         EXFATAL("Failed to initialize vulkan backend");
         return -1;
     }
-    
-    objects.dragon.model = backend.create_model("res/meshes/dragon.obj");
+
+    _meshes.dragon.load_file("res/meshes/dragon.obj");
+    _meshes.monkey.load_file("res/meshes/monkey_smooth.obj");
+    std::vector<ex::vertex> vertices;
+    std::vector<uint32_t> indices;
+    create_grid(10, &vertices, &indices);
+    _meshes.grid.load_array(vertices, indices);
+
+    _models.dragon.create(&backend, &_meshes.dragon);
+    _models.monkey.create(&backend, &_meshes.monkey);
+    _models.grid.create(&backend, &_meshes.grid);
+
+    EXDEBUG("Dragon mesh vertex count: %d", _models.dragon.vertex_count());
+    EXDEBUG("Dragon mesh index count: %d", _models.dragon.index_count());
     objects.dragon.transform.translation = glm::vec3(-1.5f, 0.0f, 0.0f);
     objects.dragon.transform.rotation = glm::vec3(0.0f, -60.0f, 0.0f);
     objects.dragon.transform.scale = glm::vec3(0.25f);
-    EXDEBUG("Dragon mesh vertex count: %d", objects.dragon.model.vertex_count());
-    EXDEBUG("Dragon mesh index count: %d", objects.dragon.model.index_count());
-    
-    objects.monkey.model = backend.create_model("res/meshes/monkey_smooth.obj");
+
+    EXDEBUG("Monkey mesh vertex count: %d", _models.monkey.vertex_count());
+    EXDEBUG("Monkey mesh index count: %d", _models.monkey.index_count());
     objects.monkey.transform.translation = glm::vec3(1.5f, 1.0f, 0.0f);
     objects.monkey.transform.rotation = glm::vec3(0.0f, 180.0f, 0.0f);
     objects.monkey.transform.scale = glm::vec3(1.0f);
-    EXDEBUG("Monkey mesh vertex count: %d", objects.monkey.model.vertex_count());
-    EXDEBUG("Monkey mesh index count: %d", objects.monkey.model.index_count());
 
-    std::vector<ex::vertex> grid_vertices;
-    std::vector<uint32_t> grid_indices;
-    create_grid(10, &grid_vertices, &grid_indices);
-    objects.grid.model = backend.create_model_from_array(grid_vertices, grid_indices);
+    EXDEBUG("Grid mesh vertex count: %d", _models.grid.vertex_count());
+    EXDEBUG("Grid mesh index count: %d", _models.grid.index_count());
     objects.grid.transform.translation = glm::vec3(-5.0f, 0.0f, -5.0f);
     objects.grid.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
     objects.grid.transform.scale = glm::vec3(1.0f);
-    EXDEBUG("Grid mesh vertex count: %d", objects.grid.model.vertex_count());
-    EXDEBUG("Grid mesh index count: %d", objects.grid.model.index_count());
+        
+    //ex::vulkan::texture texture = backend.create_texture("res/textures/paris.jpg");
     
-    ex::vulkan::texture texture = backend.create_texture("res/textures/paris.jpg");
-    ex::vulkan::buffer uniform_buffer = backend.create_buffer(sizeof(ex::vulkan::uniform_data),
-                                                              VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-                                                              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                                              VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    ex::vulkan::buffer uniform_buffer;
+    uniform_buffer.set_usage(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
+    uniform_buffer.set_properties(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    uniform_buffer.build(&backend, sizeof(ex::ubo));
+    uniform_buffer.bind(&backend);
     
     ex::vulkan::descriptor_pool descriptor_pool;
     descriptor_pool.add_size(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1);
-    descriptor_pool.add_size(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1);
-    descriptor_pool.create(&backend, 2);
+    //descriptor_pool.add_size(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1);
+    descriptor_pool.create(&backend, 1);
     
-    descriptor_sets.uniform.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr);
-    descriptor_sets.uniform.build_layout(&backend);
-    descriptor_sets.uniform.allocate(&backend, &descriptor_pool);
-    descriptor_sets.uniform.add_write_set(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, uniform_buffer.get_descriptor_info());
-    descriptor_sets.uniform.update(&backend);
+    _descriptor_sets.uniform.add_binding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr);
+    _descriptor_sets.uniform.build_layout(&backend);
+    _descriptor_sets.uniform.allocate(&backend, &descriptor_pool);
+    _descriptor_sets.uniform.add_write_set(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, nullptr, uniform_buffer.get_descriptor_info());
+    _descriptor_sets.uniform.update(&backend);
 
-    descriptor_sets.textures.add_binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr);
-    descriptor_sets.textures.build_layout(&backend);
-    descriptor_sets.textures.allocate(&backend, &descriptor_pool);
-    descriptor_sets.textures.add_write_set(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, texture.get_descriptor_info(), nullptr);
-    descriptor_sets.textures.update(&backend);
+    // _descriptor_sets.textures.add_binding(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr);
+    // _descriptor_sets.textures.build_layout(&backend);
+    // _descriptor_sets.textures.allocate(&backend, &descriptor_pool);
+    // _descriptor_sets.textures.add_write_set(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, texture.get_descriptor_info(), nullptr);
+    // _descriptor_sets.textures.update(&backend);
 
-    shaders.colored.create(&backend, "res/shaders/default.vert.spv", "res/shaders/colored.frag.spv");
-    shaders.textured.create(&backend, "res/shaders/default.vert.spv", "res/shaders/textured.frag.spv");
+    _shaders.colored.create(&backend, "res/shaders/default.vert.spv", "res/shaders/colored.frag.spv");
+    //_shaders.textured.create(&backend, "res/shaders/default.vert.spv", "res/shaders/textured.frag.spv");
 
-    pipelines.colored.push_descriptor_set_layout(descriptor_sets.uniform.layout());
-    pipelines.colored.set_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ex::push_constants));
-    pipelines.colored.build_layout(&backend);
-    pipelines.colored.set_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    pipelines.colored.set_polygon_mode(VK_POLYGON_MODE_FILL);
-    pipelines.colored.set_cull_mode(VK_CULL_MODE_BACK_BIT);
-    pipelines.colored.set_front_face(VK_FRONT_FACE_CLOCKWISE);
-    pipelines.colored.build(&backend, &shaders.colored);
+    _pipelines.colored.push_descriptor_set_layout(_descriptor_sets.uniform.layout());
+    _pipelines.colored.set_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ex::push_constants));
+    _pipelines.colored.build_layout(&backend);
+    _pipelines.colored.set_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    _pipelines.colored.set_polygon_mode(VK_POLYGON_MODE_FILL);
+    _pipelines.colored.set_cull_mode(VK_CULL_MODE_BACK_BIT);
+    _pipelines.colored.set_front_face(VK_FRONT_FACE_CLOCKWISE);
+    _pipelines.colored.build(&backend, &_shaders.colored);
 
-    pipelines.textured.push_descriptor_set_layout(descriptor_sets.uniform.layout());
-    pipelines.textured.push_descriptor_set_layout(descriptor_sets.textures.layout());
-    pipelines.textured.set_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ex::push_constants));
-    pipelines.textured.build_layout(&backend);
-    pipelines.textured.set_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    pipelines.textured.set_polygon_mode(VK_POLYGON_MODE_FILL);
-    pipelines.textured.set_cull_mode(VK_CULL_MODE_BACK_BIT);
-    pipelines.textured.set_front_face(VK_FRONT_FACE_CLOCKWISE);
-    pipelines.textured.build(&backend, &shaders.textured);
+    // _pipelines.textured.push_descriptor_set_layout(_descriptor_sets.uniform.layout());
+    // _pipelines.textured.push_descriptor_set_layout(_descriptor_sets.textures.layout());
+    // _pipelines.textured.set_push_constant_range(VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ex::push_constants));
+    // _pipelines.textured.build_layout(&backend);
+    // _pipelines.textured.set_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    // _pipelines.textured.set_polygon_mode(VK_POLYGON_MODE_FILL);
+    // _pipelines.textured.set_cull_mode(VK_CULL_MODE_BACK_BIT);
+    // _pipelines.textured.set_front_face(VK_FRONT_FACE_CLOCKWISE);
+    // _pipelines.textured.build(&backend, &_shaders.textured);
 
-    shaders.colored.destroy(&backend);
-    shaders.textured.destroy(&backend);
+    _shaders.colored.destroy(&backend);
+    //_shaders.textured.destroy(&backend);
     
     ex::camera camera = {};
     camera.set_translation(glm::vec3(0.0f, -2.0f, 4.0f));
     camera.set_rotation(glm::vec3(-15.0f, 0.0f, 0.0f));
     camera.set_perspective(80.0f, (float) window.width() / (float) window.height(), 0.1f, 20.0f);
 
+    EXINFO("-=+INITIALIZED+=-");
+    
     float light_speed = 0;
     auto last_time = std::chrono::high_resolution_clock::now();
     while (window.is_active()) {        
@@ -167,13 +196,16 @@ int main() {
 
         camera.update_aspect_ratio(backend.get_swapchain_aspect_ratio());
 
-        ex::vulkan::uniform_data uniform_data = {};
-        uniform_data.view = camera.get_view();
-        uniform_data.projection = camera.get_projection();
+        ex::ubo ubo = {};
+        ubo.view = camera.get_view();
+        ubo.projection = camera.get_projection();
         light_speed += 100.0f * delta;
-        uniform_data.light_pos = glm::vec3(0.0f, 3.0f, 6.0f);
-        uniform_data.light_pos = glm::rotate(uniform_data.light_pos, glm::radians(light_speed) , glm::vec3(0.0f, 1.0f, 0.0f));
-        backend.copy_buffer_data(&uniform_buffer, &uniform_data, sizeof(ex::vulkan::uniform_data));
+        ubo.light_pos = glm::vec3(0.0f, 3.0f, 6.0f);
+        ubo.light_pos = glm::rotate(ubo.light_pos, glm::radians(light_speed) , glm::vec3(0.0f, 1.0f, 0.0f));
+
+        uniform_buffer.map(&backend);
+        uniform_buffer.copy_to(&ubo, sizeof(ex::ubo));
+        uniform_buffer.unmap(&backend);
 
         float rotation_speed = 50.0f * delta;
         objects.dragon.transform.rotation.y += rotation_speed;
@@ -182,54 +214,60 @@ int main() {
         
         backend.begin_render();
         if (!window.is_minimized()) {
-            pipelines.textured.bind(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS);
-            pipelines.textured.update_dynamic(backend.current_frame(), backend.swapchain_extent());
-            pipelines.textured.bind_descriptor_sets(backend.current_frame(),
-                                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                                    {descriptor_sets.uniform.handle(),
-                                                     descriptor_sets.textures.handle()});
+            // _pipelines.textured.bind(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS);
+            // _pipelines.textured.update_dynamic(backend.current_frame(), backend.swapchain_extent());
+            // _pipelines.textured.bind_descriptor_sets(backend.current_frame(),
+            //                                          VK_PIPELINE_BIND_POINT_GRAPHICS,
+            //                                          {_descriptor_sets.uniform.handle(),
+            //                                           _descriptor_sets.textures.handle()});
+
+            std::vector<VkDescriptorSet> sets = {_descriptor_sets.uniform.handle()};
+            _pipelines.colored.bind(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS);
+            _pipelines.colored.update_dynamic(backend.current_frame(), backend.swapchain_extent());
+            _pipelines.colored.bind_descriptor_sets(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS, sets);
             
             ex::push_constants constants = {};
             constants.transform = objects.dragon.transform.matrix();
-            pipelines.textured.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT, &constants);
-            backend.draw_model(&objects.dragon.model);
-
-            std::vector<VkDescriptorSet> sets = {descriptor_sets.uniform.handle()};
-            pipelines.colored.bind(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS);
-            pipelines.colored.update_dynamic(backend.current_frame(), backend.swapchain_extent());
-            pipelines.colored.bind_descriptor_sets(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS, sets);
-            
+            _pipelines.colored.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT, &constants);
+            _models.dragon.bind(backend.current_frame());
+            _models.dragon.draw(backend.current_frame());
+                        
             constants.transform = objects.monkey.transform.matrix();
-            pipelines.colored.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT, &constants);
-            backend.draw_model(&objects.monkey.model);
+            _pipelines.colored.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT, &constants);
+            _models.monkey.bind(backend.current_frame());
+            _models.monkey.draw(backend.current_frame());
 
+            
             constants.transform = objects.grid.transform.matrix();
-            pipelines.colored.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT, &constants);
-            backend.draw_model(&objects.grid.model);
+            _pipelines.colored.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT, &constants);
+            _models.grid.bind(backend.current_frame());
+            _models.grid.draw(backend.current_frame());
         }
         backend.end_render();
         input.update();
         
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-
-    pipelines.textured.destroy(&backend);
-    pipelines.colored.destroy(&backend);
     
-    descriptor_sets.textures.destroy_layout(&backend);
-    descriptor_sets.uniform.destroy_layout(&backend);
+    EXINFO("-=+SHUTTING_DOWN+=-");
+    //_pipelines.textured.destroy(&backend);
+    _pipelines.colored.destroy(&backend);
+    
+    //_descriptor_sets.textures.destroy_layout(&backend);
+    _descriptor_sets.uniform.destroy_layout(&backend);
     descriptor_pool.destroy(&backend);
 
-    backend.destroy_buffer(&uniform_buffer);
-    backend.destroy_texture(&texture);
-    
-    backend.destroy_model(&objects.grid.model);
-    backend.destroy_model(&objects.monkey.model);
-    backend.destroy_model(&objects.dragon.model);
+    uniform_buffer.destroy(&backend);
+    //backend.destroy_texture(&texture);
+
+    _models.grid.destroy(&backend);
+    _models.monkey.destroy(&backend);
+    _models.dragon.destroy(&backend);
     
     backend.shutdown();
     window.destroy();
     input.shutdown();
+    
     return 0;
 }
 

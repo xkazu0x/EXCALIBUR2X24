@@ -3,126 +3,100 @@
 #include <memory>
 
 void
-ex::vulkan::buffer::create(VkDevice logical_device,
-                           VkPhysicalDevice physical_device,
-                           VkAllocationCallbacks *allocator,
-                           VkDeviceSize size,
-                           VkBufferUsageFlags usage,
-                           VkMemoryPropertyFlags properties) {
+ex::vulkan::buffer::set_usage(VkBufferUsageFlags usage) {
+    m_usage = usage;
+}
+
+void
+ex::vulkan::buffer::set_properties(VkMemoryPropertyFlags properties) {
+    m_properties = properties;
+}
+
+void
+ex::vulkan::buffer::build(ex::vulkan::backend *backend, VkDeviceSize size) {
     m_size = size;
     
-    // CREATE BUFFER
     VkBufferCreateInfo buffer_create_info = {};
     buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    buffer_create_info.size = size;
-    buffer_create_info.usage = usage;
+    buffer_create_info.size = m_size;
+    buffer_create_info.usage = m_usage;
     buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     buffer_create_info.queueFamilyIndexCount = 0;
     buffer_create_info.pQueueFamilyIndices = nullptr;
-    VK_CHECK(vkCreateBuffer(logical_device,
+    VK_CHECK(vkCreateBuffer(backend->logical_device(),
                             &buffer_create_info,
-                            allocator,
+                            backend->allocator(),
                             &m_handle));
 
-    // ALLOCATE MEMORY
     VkMemoryRequirements memory_requirements;
-    vkGetBufferMemoryRequirements(logical_device,
+    vkGetBufferMemoryRequirements(backend->logical_device(),
                                   m_handle,
                                   &memory_requirements);
-    
-    VkPhysicalDeviceMemoryProperties physical_device_memory_properties;
-    vkGetPhysicalDeviceMemoryProperties(physical_device, &physical_device_memory_properties);
-    
-    uint32_t memory_type_index = 0;
-    // TODO: check error
-    for (uint32_t i = 0; i < physical_device_memory_properties.memoryTypeCount; ++i) {
-        if ((memory_requirements.memoryTypeBits & (1 << i)) &&
-            (physical_device_memory_properties.memoryTypes[i].propertyFlags & properties) == properties) {
-            memory_type_index = i;
-            break;
-        }
-    }
+
+    uint32_t memory_type_index = backend->get_memory_type_index(memory_requirements, m_properties);
     
     VkMemoryAllocateInfo memory_allocate_info = {};
     memory_allocate_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     memory_allocate_info.allocationSize = memory_requirements.size;
     memory_allocate_info.memoryTypeIndex = memory_type_index;
-    VK_CHECK(vkAllocateMemory(logical_device,
+    VK_CHECK(vkAllocateMemory(backend->logical_device(),
                               &memory_allocate_info,
-                              allocator,
+                              backend->allocator(),
                               &m_memory));
+}
 
-    vkBindBufferMemory(logical_device,
+void
+ex::vulkan::buffer::bind(ex::vulkan::backend *backend, VkDeviceSize offset) {
+    vkBindBufferMemory(backend->logical_device(),
                        m_handle,
                        m_memory,
-                       0);
+                       offset);
 }
 
 void
-ex::vulkan::buffer::copy_data(VkDevice logical_device,
-                              const void *source,
-                              VkDeviceSize size) {
-    void *data;
-    vkMapMemory(logical_device,
+ex::vulkan::buffer::map(ex::vulkan::backend *backend, VkDeviceSize offset) {
+    vkMapMemory(backend->logical_device(),
                 m_memory,
+                offset,
+                m_size,
                 0,
-                size,
-                0,
-                &data);
-    memcpy(data, source, (size_t) size);
-    vkUnmapMemory(logical_device, m_memory);
+                &m_mapped);
 }
 
 void
-ex::vulkan::buffer::copy_buffer(VkDevice logical_device,
-                                VkCommandPool command_pool,
-                                VkQueue queue,
-                                VkBuffer source_buffer,
-                                VkDeviceSize source_buffer_size) {
-    VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
-    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    command_buffer_allocate_info.commandPool = command_pool;
-    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    command_buffer_allocate_info.commandBufferCount = 1;
+ex::vulkan::buffer::unmap(ex::vulkan::backend *backend) {
+    vkUnmapMemory(backend->logical_device(), m_memory);
+    //m_mapped = nullptr;
+}
 
-    VkCommandBuffer command_buffer;
-    VK_CHECK(vkAllocateCommandBuffers(logical_device,
-                                      &command_buffer_allocate_info,
-                                      &command_buffer));
+void
+ex::vulkan::buffer::copy_to(void *data, VkDeviceSize size) {
+    memcpy(m_mapped, data, (size_t) size);
+}
 
-    VkCommandBufferBeginInfo command_buffer_begin_info = {};
-    command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    VK_CHECK(vkBeginCommandBuffer(command_buffer, &command_buffer_begin_info));
-
-    VkBufferCopy buffer_copy;
+void
+ex::vulkan::buffer::copy_buffer(VkCommandBuffer command_buffer,
+                                VkBuffer buffer,
+                                VkDeviceSize size) {
+    VkBufferCopy buffer_copy = {};
     buffer_copy.srcOffset = 0;
     buffer_copy.dstOffset = 0;
-    buffer_copy.size = source_buffer_size;
-    vkCmdCopyBuffer(command_buffer, source_buffer, m_handle, 1, &buffer_copy);
-    
-    VK_CHECK(vkEndCommandBuffer(command_buffer));
-
-    VkSubmitInfo submit_info = {};
-    submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &command_buffer;
-    VK_CHECK(vkQueueSubmit(queue, 1, &submit_info, VK_NULL_HANDLE));
-
-    vkQueueWaitIdle(queue);
-    vkFreeCommandBuffers(logical_device, command_pool, 1, &command_buffer);
+    buffer_copy.size = size;
+    vkCmdCopyBuffer(command_buffer, buffer, m_handle, 1, &buffer_copy);
 }
 
 void
-ex::vulkan::buffer::destroy(VkDevice logical_device,
-                            VkAllocationCallbacks *allocator) {
-    if (m_handle) vkDestroyBuffer(logical_device, m_handle, allocator);
-    if (m_memory) vkFreeMemory(logical_device, m_memory, allocator);
-}
-
-VkBuffer
-ex::vulkan::buffer::handle() {
-    return m_handle;
+ex::vulkan::buffer::destroy(ex::vulkan::backend *backend) {
+    if (m_handle) {
+        vkDestroyBuffer(backend->logical_device(),
+                        m_handle,
+                        backend->allocator());
+    }
+    if (m_memory) {
+        vkFreeMemory(backend->logical_device(),
+                     m_memory,
+                     backend->allocator());
+    }
 }
 
 VkDescriptorBufferInfo*

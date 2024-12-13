@@ -23,7 +23,7 @@ namespace std {
 }
 
 void
-ex::mesh::create(const char *path) {
+ex::mesh::load_file(const char *path) {
     tinyobj::attrib_t attributes;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
@@ -86,19 +86,8 @@ ex::mesh::create(const char *path) {
 }
 
 void
-ex::mesh::create_from_array(std::vector<ex::vertex> &vertices,
-                            std::vector<uint32_t> &indices) {
+ex::mesh::load_array(std::vector<ex::vertex> &vertices,
+                     std::vector<uint32_t> &indices) {
     m_vertices = vertices;
     m_indices = indices;
-}
-
-
-std::vector<ex::vertex>
-ex::mesh::vertices() {
-    return m_vertices;
-}
-
-std::vector<uint32_t>
-ex::mesh::indices() {
-    return m_indices;
 }
