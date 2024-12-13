@@ -1,18 +1,19 @@
 #pragma once
 
-#include "vk_backend.h"
 #include "vk_buffer.h"
 #include "vk_image.h"
-#include <vulkan/vulkan.h>
 
 namespace ex::vulkan {
     class texture {        
     public:
+        void create(ex::vulkan::backend *backend, const char *file_path);
+        void destroy(ex::vulkan::backend *backend);
+        
         VkDescriptorImageInfo *get_descriptor_info();
         
-    public:
-        ex::vulkan::image image;
-        VkSampler sampler;
+    private:
+        ex::vulkan::image m_image;
+        VkSampler m_sampler;
         VkDescriptorImageInfo m_descriptor_info;
     };
 }

@@ -1,11 +1,6 @@
 #pragma once
 
 #include "ex_window.h"
-#include "ex_vertex.h"
-
-#include "vk_image.h"
-//#include "vk_model.h"
-//#include "vk_texture.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
@@ -25,10 +20,7 @@ namespace ex::vulkan {
         void shutdown();
         void begin_render();
         void end_render();
-        
-        //ex::vulkan::texture create_texture(const char *file);
-        //void destroy_texture(ex::vulkan::texture *texture);
-        
+                
         VkCommandBuffer begin_single_time_commands();
         void end_single_time_commands(VkCommandBuffer command_buffer);
 
@@ -52,6 +44,7 @@ namespace ex::vulkan {
         void create_swapchain(uint32_t width, uint32_t height);
         void recreate_swapchain(uint32_t width, uint32_t height);
         bool create_depth_resources();
+        void destroy_depth_resources();
         void create_render_pass();
         void create_framebuffers();
         void create_sync_structures();
@@ -92,7 +85,10 @@ namespace ex::vulkan {
         std::vector<VkFramebuffer> m_swapchain_framebuffers;
         uint32_t m_next_image_index;
 
-        ex::vulkan::image m_depth_image;
+        VkImage m_depth_image;
+        VkDeviceMemory m_depth_image_memory;
+        VkImageView m_depth_image_view;
+        VkFormat m_depth_format;
         VkRenderPass m_render_pass;
 
         VkFence m_fence;
