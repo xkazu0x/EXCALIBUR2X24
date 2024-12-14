@@ -519,8 +519,10 @@ ex::vulkan::backend::create_swapchain(uint32_t width, uint32_t height) {
     bool found_present_mode = false;
     for (uint32_t i = 0; i < m_swapchain_present_modes.size(); i++) {
         VkPresentModeKHR present_mode = m_swapchain_present_modes[i];
-        if (present_mode == VK_PRESENT_MODE_MAILBOX_KHR) {
-            EXDEBUG("Present mode: MAILBOX");
+        // if (present_mode == VK_PRESENT_MODE_MAILBOX_KHR) {
+        //            EXDEBUG("Present mode: MAILBOX");
+        if (present_mode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+            EXDEBUG("Present mode: IMMEDIATE");
             m_swapchain_present_mode = present_mode;
             found_present_mode = true;
             break;

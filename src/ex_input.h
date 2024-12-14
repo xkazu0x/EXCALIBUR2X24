@@ -12,6 +12,8 @@ enum ex_buttons {
 #define DEFINE_KEY(name, code) EX_KEY_##name = code
 
 enum ex_keys {
+    DEFINE_KEY(TAB, 0x09),
+    
     DEFINE_KEY(ESCAPE, 0x1B),
     
     DEFINE_KEY(LEFT, 0x25),

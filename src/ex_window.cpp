@@ -1,4 +1,5 @@
 #include "ex_window.h"
+#include "ex_logger.h"
 
 void
 ex::window::create(ex::input *input, std::string title, uint32_t width, uint32_t height, bool fullscreen) {
@@ -88,19 +89,13 @@ ex::window::update() {
         TranslateMessage(&msg);
         DispatchMessage(&msg);
     }
-
-    WINDOWPLACEMENT wp;
-    GetWindowPlacement(m_handle, &wp);
-    if (wp.showCmd == SW_SHOWMINIMIZED) {
-        m_minimized = true;
-    } else {
-        m_minimized = false;
-    }
 }
 
 void
 ex::window::show() {
     ShowWindow(m_handle, SW_SHOW);
+    SetForegroundWindow(m_handle);
+    SetFocus(m_handle);
     m_state = EX_WINDOW_STATE_ACTIVE;
 }
 
@@ -110,14 +105,19 @@ ex::window::close() {
     m_state = EX_WINDOW_STATE_CLOSED;
 }
 
-bool
-ex::window::is_active() {
-    return m_state == EX_WINDOW_STATE_ACTIVE;
+void
+ex::window::sleep(uint64_t ms) {
+    Sleep(ms);
 }
 
 bool
-ex::window::is_minimized() {
-    return m_minimized;
+ex::window::closed() {
+    return m_state == EX_WINDOW_STATE_CLOSED;
+}
+
+bool
+ex::window::inactive() {
+    return m_state == EX_WINDOW_STATE_INACTIVE;
 }
 
 uint32_t
@@ -188,6 +188,23 @@ ex::window::change_display_mode() {
     }
 }
 
+void
+ex::window::change_title(std::string title) {
+    SetWindowTextA(m_handle, title.c_str());
+}
+
+void
+ex::window::set_cursor_pos(uint32_t x, uint32_t y) {
+    if (m_state == EX_WINDOW_STATE_ACTIVE) {
+        POINT point;
+        point.x = x;
+        point.y = y;
+    
+        ClientToScreen(m_handle, &point);
+        SetCursorPos(point.x, point.y);
+    }
+}
+
 bool
 ex::window::create_vulkan_surface(VkInstance instance,
                                        VkAllocationCallbacks *allocator,
@@ -230,12 +247,28 @@ LRESULT
 ex::window::process_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     switch (msg) {
     case WM_CLOSE: {
+        EXDEBUG("-+WINDOW_CLOSED+-");
         close();
         return 0;
     } break;
-    case WM_SIZE: {        
+    case WM_DESTROY: {
+        EXDEBUG("-+WINDOW_DESTROYED+-");
+        close();
+    } break;
+    case WM_SIZE: {
         m_info.current_width = LOWORD(lparam);
         m_info.current_height = HIWORD(lparam);
+    } break;
+    case WM_ACTIVATE: {
+        if (LOWORD(wparam) == WA_INACTIVE) {
+            EXDEBUG("-+WINDOW_INACTIVE+-");
+            ShowCursor(true);
+            m_state = EX_WINDOW_STATE_INACTIVE;
+        } else {
+            EXDEBUG("-+WINDOW_ACTIVATED+-");
+            ShowCursor(false);
+            m_state = EX_WINDOW_STATE_ACTIVE;
+        }
     } break;
     case WM_KEYDOWN:
     case WM_SYSKEYDOWN:

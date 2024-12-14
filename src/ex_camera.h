@@ -14,9 +14,15 @@ namespace ex {
         void set_sens(float sens);
         
         void set_perspective(float fov, float aspect, float znear, float zfar);
+        
         void update_aspect_ratio(float aspect);
+        void update_view();
 
         void update(ex::input *input, float delta);
+
+        void rotate(glm::vec3 rotation);
+        void set_width(uint32_t width) { m_width = width; }
+        void set_height(uint32_t height) { m_height = height; }
         
         glm::mat4 get_view() { return m_view; }
         glm::mat4 get_projection() { return m_projection; }
@@ -37,5 +43,9 @@ namespace ex {
         float m_fov;
         float m_znear;
         float m_zfar;
+
+        uint32_t m_width;
+        uint32_t m_height;
+        glm::vec2 m_old_mouse_pos;
     };
 }

@@ -40,6 +40,11 @@ ex::camera::update_aspect_ratio(float aspect) {
 }
 
 void
+ex::camera::update_view() {
+    m_view = glm::lookAt(m_position, m_position - m_target, m_up);
+}
+
+void
 ex::camera::update(ex::input *input, float delta) {
     if (input->key_down(EX_KEY_W)) {
         glm::vec3 left = glm::normalize(glm::cross(m_target, m_up));
@@ -56,22 +61,24 @@ ex::camera::update(ex::input *input, float delta) {
     if (input->key_down(EX_KEY_A)) m_position += m_speed * delta * glm::normalize(glm::cross(m_target, m_up));
     if (input->key_down(EX_KEY_D)) m_position += m_speed * delta * -glm::normalize(glm::cross(m_target, m_up));
 
-    if (input->key_down(EX_KEY_I)) {
-        glm::vec3 new_target = glm::rotate(m_target, glm::radians(m_sens * delta), glm::normalize(glm::cross(m_target, m_up)));
-        if (!(glm::angle(new_target, m_up) <= glm::radians(5.0f) || glm::angle(new_target, -m_up) <= glm::radians(5.0f))) {
-            m_target = new_target;
-        }
-    }
+    int mx, my;
+    input->mouse_position(&mx, &my);
+
+    glm::vec2 current_mouse_pos = glm::vec2(mx, my);
+    m_old_mouse_pos = glm::vec2(m_width / 2, m_height / 2);
     
-    if (input->key_down(EX_KEY_K)) {
-        glm::vec3 new_target = glm::rotate(m_target, glm::radians(-m_sens * delta), glm::normalize(glm::cross(m_target, m_up)));
-        if (!(glm::angle(new_target, m_up) <= glm::radians(5.0f) || glm::angle(new_target, -m_up) <= glm::radians(5.0f))) {
-            m_target = new_target;
-        }
-    }
+    glm::vec2 mouse_delta = current_mouse_pos - m_old_mouse_pos;
+    //float xrot = m_sens * static_cast<float>((mouse_delta.x - (m_height / 2)) / m_height);
 
-    if (input->key_down(EX_KEY_J)) m_target = glm::rotate(m_target, glm::radians(m_sens * delta), m_up);
-    if (input->key_down(EX_KEY_L)) m_target = glm::rotate(m_target, glm::radians(-m_sens * delta), m_up);
+    glm::vec3 left = glm::normalize(glm::cross(m_target, m_up));
+    m_target = glm::rotate(m_target, glm::radians(mouse_delta.y * m_sens), -left);
+    m_target = glm::rotate(m_target, glm::radians(mouse_delta.x * m_sens), -m_up);
+}
 
-    m_view = glm::lookAt(m_position, m_position - m_target, m_up);
+void
+ex::camera::rotate(glm::vec3 rotation) {
+    m_target = glm::rotate(m_target, glm::radians(rotation.x), glm::vec3(1.0f, 0.0f, 0.0f));
+    m_target = glm::rotate(m_target, glm::radians(rotation.y), glm::vec3(0.0f, 1.0f, 0.0f));
+    m_target = glm::rotate(m_target, glm::radians(rotation.z), glm::vec3(0.0f, 0.0f, 1.0f));
+    update_view();
 }

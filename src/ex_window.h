@@ -21,12 +21,17 @@ namespace ex {
         
         void show();
         void close();
-        bool is_active();
-        bool is_minimized();
+        void sleep(uint64_t ms);
+        
+        bool closed();
+        bool inactive();
         uint32_t width();
         uint32_t height();
         int8_t get_key(int32_t key_code);
+        
         void change_display_mode();
+        void change_title(std::string title);
+        void set_cursor_pos(uint32_t x, uint32_t y);
 
         bool create_vulkan_surface(VkInstance instance,
                                    VkAllocationCallbacks *allocator,
@@ -55,7 +60,8 @@ namespace ex {
         enum window_state {
             EX_WINDOW_STATE_HIDDEN = 0x00,
             EX_WINDOW_STATE_ACTIVE = 0x01,
-            EX_WINDOW_STATE_CLOSED = 0x02,
+            EX_WINDOW_STATE_INACTIVE = 0x02,
+            EX_WINDOW_STATE_CLOSED = 0x04,
         };
         
     private:
@@ -67,6 +73,5 @@ namespace ex {
 
         window_info m_info;
         window_state m_state;
-        bool m_minimized;
     };
 }
