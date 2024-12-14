@@ -29,12 +29,12 @@ void main() {
 
     // CARTOON
     if (pow(max(dot(reflection, camera), 0.0), 5.0) > 0.5) {
-        out_frag_color = vec4(1.0);
+        out_frag_color = vec4(vec3(push.color), 1.0);
     } else if (dot(-camera, normal) < 0.5) {
-        //out_frag_color = vec4(vec3(push.color) / 10, 1.0);
+        //out_frag_color = vec4(vec3(push.color) * 0.1, 1.0);
     } else if (max(dot(normal, light), 0.0) >= 0.1) {
-        //out_frag_color = vec4(vec3(push.color), 1.0);
+        //out_frag_color = vec4(vec3(push.color) * 0.5, 1.0);
     } else {
-        //out_frag_color = vec4(vec3(push.color) / 5, 1.0);
+        //out_frag_color = vec4(vec3(push.color) * 0.3, 1.0);
     }
 }

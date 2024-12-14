@@ -15,6 +15,8 @@
 #include <memory>
 #include <chrono>
 #include <thread>
+#include <sstream>
+#include <iomanip>
 
 ex::input input;
 ex::window window;
@@ -31,17 +33,17 @@ namespace push_constants {
     };
 }
 
+struct ubo {
+    glm::mat4 view;
+    glm::mat4 projection;
+    glm::vec3 light_pos;
+};
+
 namespace ex {
     struct entity {
         ex::mesh mesh;
         ex::vulkan::model model;
         ex::comp::transform transform;
-    };
-
-    struct ubo {
-        glm::mat4 view;
-        glm::mat4 projection;
-        glm::vec3 light_pos;
     };
 }
 
@@ -63,7 +65,14 @@ int main() {
     EXFATAL("-+=+EXCALIBUR+=+-");
     input.initialize();
 
-    window.create(&input, "EXCALIBUR", 1920 * 0.8, 1080 * 0.8, false);
+    ex::window::create_info window_create_info = {};
+    window_create_info.title = "EXCALIBUR";
+    window_create_info.width = 1920 * 0.7;
+    window_create_info.height = 1080 * 0.7;
+    window_create_info.mode = ex::window::mode::WINDOWED;
+    window_create_info.pinput = &input;
+    
+    window.create(&window_create_info);
     window.show();
     
     if (!backend.initialize(&window)) {
@@ -71,8 +80,16 @@ int main() {
         return -1;
     }
 
+    // ex::entity monkey = entity_manager.create_entity();
+    // asset_manager.add_mesh(monkey.id, "res/meshes/monkey_smooth.obj");
+    // renderer.create_model(monkey.id);
+    // components.add_transform(monkey.id);
+    // components.add_bounding_box(monkey.id);
+    
     ex::entity monkey;
     monkey.mesh.load_file("res/meshes/monkey_smooth.obj");
+    EXDEBUG("Monkey vertex count: %d", monkey.mesh.vertices().size());
+    EXDEBUG("Monkey index count: %d", monkey.mesh.indices().size());
     monkey.model.create(&backend, &monkey.mesh);
 
     ex::entity grid;
@@ -85,7 +102,7 @@ int main() {
     ex::vulkan::buffer uniform_buffer;
     uniform_buffer.set_usage(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     uniform_buffer.set_properties(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    uniform_buffer.build(&backend, sizeof(ex::ubo));
+    uniform_buffer.build(&backend, sizeof(ubo));
     uniform_buffer.bind(&backend);
     
     ex::vulkan::descriptor_pool descriptor_pool;
@@ -104,7 +121,7 @@ int main() {
     _pipelines.solid_color.set_push_constant_range((VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT), 0, sizeof(push_constants::color));
     _pipelines.solid_color.build_layout(&backend);
     _pipelines.solid_color.set_topology(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    _pipelines.solid_color.set_polygon_mode(VK_POLYGON_MODE_FILL);
+    _pipelines.solid_color.set_polygon_mode(VK_POLYGON_MODE_LINE);
     _pipelines.solid_color.set_cull_mode(VK_CULL_MODE_BACK_BIT);
     _pipelines.solid_color.set_front_face(VK_FRONT_FACE_CLOCKWISE);
     _pipelines.solid_color.build(&backend, &_shaders.solid_color);
@@ -114,26 +131,21 @@ int main() {
     EXINFO("-=+INITIALIZED+=-");
     // NOTE: camera orientation is inverted
     ex::camera camera = {};
+    camera.set_speed(2.5f);
+    camera.set_sens(33.0f);
     camera.set_position({0.0f, 2.0f, 4.0f});
     camera.set_target({0.0f, 0.0f, 1.0f});
     camera.set_up({0.0f, -1.0f, 0.0f});
     camera.set_perspective(80.0f, (float) window.width() / (float) window.height(), 0.1f, 20.0f);                        
-    camera.set_speed(2.5f);
-    camera.set_sens(0.05f);
     
-    camera.set_width(backend.swapchain_extent().width);
-    camera.set_height(backend.swapchain_extent().height);
-    
-    grid.transform.translation = glm::vec3(-5.0f, 0.0f, -5.0f);
+    grid.transform.translation = glm::vec3(0.0f, 0.0f, 0.0f);
     grid.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
     grid.transform.scale = glm::vec3(1.0f);
     
     float light_speed = 0;
-    bool camera_movement = false;
     
     using clock = std::chrono::high_resolution_clock;
     auto last_time = clock::now();
-    int frames = 0;
     while (!window.closed()) {
         window.update();
         
@@ -142,24 +154,26 @@ int main() {
         last_time = now;
 
         if (delta >= 0.0f) {
-            float fps = frames / delta;
-            std::string title = "EXCALIBUR - FPS " + std::to_string(fps);
+            std::ostringstream oss;
+            oss << std::fixed << std::setprecision(2) << delta * 1000;
+            std::string title = "EXCALIBUR | " + oss.str() + " ms";
             window.change_title(title);
-            frames = 0;
         }        
         
         if (input.key_pressed(EX_KEY_ESCAPE)) window.close();
         if (input.key_pressed(EX_KEY_F1)) window.change_display_mode();
-        if (input.key_pressed(EX_KEY_TAB)) camera_movement = !camera_movement;
-                
-        if (camera_movement) camera.update(&input, delta);
-        camera.update_aspect_ratio(backend.get_swapchain_aspect_ratio());
-        camera.update_view();
 
-        window.set_cursor_pos(backend.swapchain_extent().width / 2,
-                              backend.swapchain_extent().height / 2);
+        camera.update_matrix(backend.swapchain_extent().width, backend.swapchain_extent().height);
+        camera.update_input(&input, delta);
+        if (!camera.is_locked()) {
+            window.set_cursor_pos(backend.swapchain_extent().width / 2, backend.swapchain_extent().height / 2);
+            //window.show_cursor(false);
+        }
+
+        float grid_speed = 100.0f * delta;
+        grid.transform.rotation.y += grid_speed;
         
-        ex::ubo ubo = {};
+        ubo ubo = {};
         ubo.view = camera.get_view();
         ubo.projection = camera.get_projection();
         
@@ -168,7 +182,7 @@ int main() {
         ubo.light_pos = glm::rotate(ubo.light_pos, glm::radians(light_speed) , glm::vec3(0.0f, 1.0f, 0.0f));
 
         uniform_buffer.map(&backend);
-        uniform_buffer.copy_to(&ubo, sizeof(ex::ubo));
+        uniform_buffer.copy_to(&ubo, sizeof(ubo));
         uniform_buffer.unmap(&backend);
         
         backend.begin_render();
@@ -187,7 +201,7 @@ int main() {
                     monkey.transform.scale = glm::vec3(0.8f);
                 
                     constants.model = monkey.transform.matrix();
-                    constants.color = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+                    constants.color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
                     _pipelines.solid_color.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, &constants);
                     monkey.model.bind(backend.current_frame());
                     monkey.model.draw(backend.current_frame());
@@ -202,11 +216,9 @@ int main() {
         }
         
         backend.end_render();
-        frames++;
-        
         input.update();
         
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        //std::this_thread::sleep_for(std::chrono::milliseconds(1));
         //window.sleep(1);
     }
     
@@ -231,8 +243,10 @@ int main() {
 void create_grid(uint32_t size,
                  std::vector<ex::vertex> *vertices,
                  std::vector<uint32_t> *indices) {
-    for (uint32_t z = 0; z < size; z++) {
-        for (uint32_t x = 0; x < size; x++) {
+    float sizef = static_cast<float>(size);
+    float half = sizef / 2;
+    for (float z = -half; z < half; z++) {
+        for (float x = -half; x < half; x++) {
             vertices->push_back(ex::vertex({1.0f + x, 0.0f, 1.0f + z},
                                            {1.0f, 1.0f, 1.0f},
                                            {0.0f, 0.0f},

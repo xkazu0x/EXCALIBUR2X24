@@ -15,7 +15,21 @@
 namespace ex {    
     class window {
     public:
-        void create(ex::input *input, std::string title, uint32_t width, uint32_t height, bool fullscreen);
+        enum mode {
+            WINDOWED = 0,
+            FULLSCREEN = 1,
+        };
+
+        struct create_info {
+            std::string title;
+            uint32_t width;
+            uint32_t height;
+            ex::window::mode mode;
+            ex::input *pinput;
+        };
+                
+    public:
+        void create(ex::window::create_info *create_info);
         void destroy();
         void update();
         
@@ -32,7 +46,8 @@ namespace ex {
         void change_display_mode();
         void change_title(std::string title);
         void set_cursor_pos(uint32_t x, uint32_t y);
-
+        void show_cursor(bool show);
+        
         bool create_vulkan_surface(VkInstance instance,
                                    VkAllocationCallbacks *allocator,
                                    VkSurfaceKHR *surface);
@@ -54,7 +69,6 @@ namespace ex {
             uint32_t fullscreen_height;
             int32_t xpos;
             int32_t ypos;
-            bool fullscreen;
         };
         
         enum window_state {
@@ -65,13 +79,14 @@ namespace ex {
         };
         
     private:
-        ex::input *m_input;
+        ex::input *m_pinput;
         
         HINSTANCE m_instance;
         ATOM m_atom;
         HWND m_handle;
 
-        window_info m_info;
-        window_state m_state;
+        window_info m_window_info;
+        window_state m_current_state;
+        ex::window::mode m_current_mode;
     };
 }
