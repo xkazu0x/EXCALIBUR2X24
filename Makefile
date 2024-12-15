@@ -1,7 +1,7 @@
 CC := g++
 CFLAGS := -std=c++17 -Wall -Wextra -g
 INCLUDES := -I. -Ivendor\includes -IC:\VulkanSDK\1.3.283.0\Include
-LIBS := -luser32 -LC:\VulkanSDK\1.3.283.0\Lib -lvulkan-1
+LIBS := -luser32 -lwinmm -LC:\VulkanSDK\1.3.283.0\Lib -lvulkan-1
 DEFINES := -DEXCALIBUR_DEBUG
 
 GLSLC := C:\VulkanSDK\1.3.283.0\Bin\glslc.exe

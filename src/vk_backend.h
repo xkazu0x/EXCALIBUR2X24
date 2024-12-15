@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ex_window.h"
+#include "ex_platform.h"
 
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
@@ -16,7 +16,7 @@
 namespace ex::vulkan {
     class backend {
     public:
-        bool initialize(ex::window *window);
+        bool initialize(ex::platform::window *pwindow);
         void shutdown();
         void begin_render();
         void end_render();
@@ -53,7 +53,7 @@ namespace ex::vulkan {
         VkImageView create_image_view(VkImage image, VkImageViewType type, VkFormat format, VkImageAspectFlags aspect_flags);
 
     private:
-        ex::window *m_window;
+        ex::platform::window *m_pwindow;
 
         VkAllocationCallbacks *m_allocator;
         VkInstance m_instance;

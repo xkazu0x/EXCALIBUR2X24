@@ -67,8 +67,8 @@ ex::camera::update_input(ex::input *input, float delta) {
         int mx, my;
         input->mouse_position(&mx, &my);
 
-        glm::vec2 current_mouse_pos = glm::vec2(mx, my);
-        m_old_mouse_pos = glm::vec2(m_width / 2, m_height / 2);
+        glm::vec2 current_mouse_pos = glm::vec2((float)mx, (float)my);
+        m_old_mouse_pos = glm::vec2((float)m_width / 2, (float)m_height / 2);
     
         glm::vec2 mouse_delta = current_mouse_pos - m_old_mouse_pos;
         //float xrot = m_sens * static_cast<float>((mouse_delta.x - (m_height / 2)) / m_height);

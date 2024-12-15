@@ -12,24 +12,24 @@
 #include <string>
 #include <cstdint>
 
-namespace ex {    
+namespace ex::platform {
     class window {
     public:
         enum mode {
             WINDOWED = 0,
             FULLSCREEN = 1,
         };
-
+        
         struct create_info {
             std::string title;
             uint32_t width;
             uint32_t height;
-            ex::window::mode mode;
+            window::mode mode;
             ex::input *pinput;
         };
                 
     public:
-        void create(ex::window::create_info *create_info);
+        void create(window::create_info *create_info);
         void destroy();
         void update();
         
@@ -87,6 +87,34 @@ namespace ex {
 
         window_info m_window_info;
         window_state m_current_state;
-        ex::window::mode m_current_mode;
+        window::mode m_current_mode;
+    };
+
+    class timer {
+    public:
+        void init(float target_seconds_per_frame);
+        void start();
+        void end();
+
+        float get_seconds_elapsed() { return m_seconds_elapsed; }
+        double ms() { return m_ms_per_frame; }
+        double fps() { return m_frames_per_second; }
+        double mc() { return m_mega_cycles_per_frame; }
+        
+    private:
+        LARGE_INTEGER m_counter_frequency;
+        float m_target_seconds_per_frame;
+        bool m_sleep_is_granular;
+        
+        LARGE_INTEGER m_last_counter;
+        LARGE_INTEGER m_end_counter;
+        int64_t m_last_cycle_count;
+        int64_t m_end_cycle_count;
+
+        float m_seconds_elapsed;
+        
+        double m_ms_per_frame;
+        double m_frames_per_second;
+        double m_mega_cycles_per_frame;
     };
 }

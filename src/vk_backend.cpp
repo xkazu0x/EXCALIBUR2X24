@@ -30,8 +30,8 @@ debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
 }
 
 bool
-ex::vulkan::backend::initialize(ex::window *window) {
-    m_window = window;
+ex::vulkan::backend::initialize(ex::platform::window *pwindow) {
+    m_pwindow = pwindow;
     
     if (!create_instance()) {
         EXERROR("Failed to create vulkan instance");
@@ -40,7 +40,7 @@ ex::vulkan::backend::initialize(ex::window *window) {
 
     setup_debug_messenger();
 
-    if (!window->create_vulkan_surface(m_instance, m_allocator, &m_surface)) {
+    if (!pwindow->create_vulkan_surface(m_instance, m_allocator, &m_surface)) {
         EXERROR("Failed to create vulkan surface");
         return false;
     }
@@ -57,7 +57,7 @@ ex::vulkan::backend::initialize(ex::window *window) {
 
     create_command_pool();
     
-    create_swapchain(window->width(), window->height());
+    create_swapchain(pwindow->width(), pwindow->height());
     create_depth_resources();
     create_render_pass();
     create_framebuffers();
@@ -103,12 +103,12 @@ ex::vulkan::backend::shutdown() {
     }
 #endif    
     if (m_instance) vkDestroyInstance(m_instance, m_allocator);
-    m_window = nullptr;
+    m_pwindow = nullptr;
 }
 
 void
 ex::vulkan::backend::begin_render() {
-    if (m_window->width() == 0 || m_window->height() == 0) return;
+    if (m_pwindow->width() == 0 || m_pwindow->height() == 0) return;
     
     VK_CHECK(vkWaitForFences(m_logical_device,
                              1,
@@ -123,7 +123,7 @@ ex::vulkan::backend::begin_render() {
                                             nullptr,
                                             &m_next_image_index);
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        recreate_swapchain(m_window->width(), m_window->height());
+        recreate_swapchain(m_pwindow->width(), m_pwindow->height());
     } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         EXFATAL("Failed to acquire swapchain image");
         throw std::runtime_error("Failed to acquire swapchain image");
@@ -138,6 +138,7 @@ ex::vulkan::backend::begin_render() {
     VK_CHECK(vkBeginCommandBuffer(m_command_buffers[m_next_image_index], &command_buffer_begin_info));
 
     std::array<VkClearValue, 2> clear_values{};
+    //clear_values[0].color = { 0.0f, 1.0f, 0.0f, 1.0f };
     clear_values[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
     clear_values[1].depthStencil = { 1.0f, 0 };
     
@@ -157,7 +158,7 @@ ex::vulkan::backend::begin_render() {
 
 void
 ex::vulkan::backend::end_render() {
-    if (m_window->width() == 0 || m_window->height() == 0) return;
+    if (m_pwindow->width() == 0 || m_pwindow->height() == 0) return;
     
     vkCmdEndRenderPass(m_command_buffers[m_next_image_index]);
     VK_CHECK(vkEndCommandBuffer(m_command_buffers[m_next_image_index]));
@@ -187,7 +188,7 @@ ex::vulkan::backend::end_render() {
     
     VkResult result = vkQueuePresentKHR(m_graphics_queue, &present_info);
     if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
-        recreate_swapchain(m_window->width(), m_window->height());
+        recreate_swapchain(m_pwindow->width(), m_pwindow->height());
     } else if (result != VK_SUCCESS) {
         EXFATAL("Failed to present swapchain image");
         throw std::runtime_error("Failed to present swapchain image");

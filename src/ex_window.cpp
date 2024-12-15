@@ -1,8 +1,8 @@
-#include "ex_window.h"
+#include "ex_platform.h"
 #include "ex_logger.h"
 
 void
-ex::window::create(ex::window::create_info *create_info) {
+ex::platform::window::create(ex::platform::window::create_info *create_info) {
     m_window_info.title = create_info->title;
     m_pinput = create_info->pinput;
     
@@ -76,13 +76,13 @@ ex::window::create(ex::window::create_info *create_info) {
 }
 
 void
-ex::window::destroy() {
+ex::platform::window::destroy() {
     DestroyWindow(m_handle);
     UnregisterClass(MAKEINTATOM(m_atom), m_instance);
 }
 
 void
-ex::window::update() {
+ex::platform::window::update() {
     MSG msg;
     while (PeekMessage(&msg, m_handle, 0, 0, PM_REMOVE)) {
         if (msg.message == WM_QUIT) break;
@@ -94,7 +94,7 @@ ex::window::update() {
 }
 
 void
-ex::window::show() {
+ex::platform::window::show() {
     ShowWindow(m_handle, SW_SHOW);
     SetForegroundWindow(m_handle);
     SetFocus(m_handle);
@@ -102,43 +102,43 @@ ex::window::show() {
 }
 
 void
-ex::window::close() {
+ex::platform::window::close() {
     if (m_current_mode == FULLSCREEN) ChangeDisplaySettings(NULL, 0);
     m_current_state = EX_WINDOW_STATE_CLOSED;
 }
 
 void
-ex::window::sleep(uint64_t ms) {
+ex::platform::window::sleep(uint64_t ms) {
     Sleep(ms);
 }
 
 bool
-ex::window::closed() {
+ex::platform::window::closed() {
     return m_current_state == EX_WINDOW_STATE_CLOSED;
 }
 
 bool
-ex::window::inactive() {
+ex::platform::window::inactive() {
     return m_current_state == EX_WINDOW_STATE_INACTIVE;
 }
 
 uint32_t
-ex::window::width() {
+ex::platform::window::width() {
     return m_window_info.current_width;
 }
 
 uint32_t
-ex::window::height() {
+ex::platform::window::height() {
     return m_window_info.current_height;
 }
 
 int8_t
-ex::window::get_key(int32_t key_code) {
+ex::platform::window::get_key(int32_t key_code) {
     return GetAsyncKeyState(key_code);
 }
 
 void
-ex::window::change_display_mode() {
+ex::platform::window::change_display_mode() {
     uint32_t window_flags = SWP_SHOWWINDOW;
     LONG window_ex_style = GetWindowLong(m_handle, GWL_EXSTYLE);
     LONG window_style = GetWindowLong(m_handle, GWL_STYLE);
@@ -191,12 +191,13 @@ ex::window::change_display_mode() {
 }
 
 void
-ex::window::change_title(std::string title) {
+ex::platform::window::change_title(std::string title) {
     SetWindowTextA(m_handle, title.c_str());
+    m_window_info.title = title;
 }
 
 void
-ex::window::set_cursor_pos(uint32_t x, uint32_t y) {
+ex::platform::window::set_cursor_pos(uint32_t x, uint32_t y) {
     if (m_current_state == EX_WINDOW_STATE_ACTIVE) {
         POINT point;
         point.x = x;
@@ -208,12 +209,12 @@ ex::window::set_cursor_pos(uint32_t x, uint32_t y) {
 }
 
 void
-ex::window::show_cursor(bool show) {
+ex::platform::window::show_cursor(bool show) {
     ShowCursor(show);
 }
 
 bool
-ex::window::create_vulkan_surface(VkInstance instance,
+ex::platform::window::create_vulkan_surface(VkInstance instance,
                                   VkAllocationCallbacks *allocator,
                                   VkSurfaceKHR *surface) {
     VkWin32SurfaceCreateInfoKHR surface_create_info = {};
@@ -232,7 +233,7 @@ ex::window::create_vulkan_surface(VkInstance instance,
 }
 
 LRESULT
-ex::window::process_message_setup(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+ex::platform::window::process_message_setup(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     if (msg == WM_NCCREATE) {
         auto *create_struct = (CREATESTRUCTA*)lparam;
         SetWindowLongPtrA(hwnd, GWLP_USERDATA, (LONG_PTR)create_struct->lpCreateParams);
@@ -245,13 +246,13 @@ ex::window::process_message_setup(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lpa
 }
 
 LRESULT
-ex::window::process_message_redirect(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
-    auto *window = (ex::window*)GetWindowLongPtrA(hwnd, GWLP_USERDATA);
+ex::platform::window::process_message_redirect(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+    auto *window = (ex::platform::window*)GetWindowLongPtrA(hwnd, GWLP_USERDATA);
     return window->process_message(hwnd, msg, wparam, lparam);
 }
 
 LRESULT
-ex::window::process_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
+ex::platform::window::process_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
     switch (msg) {
     case WM_CLOSE: {
         EXDEBUG("-+WINDOW_CLOSED+-");
