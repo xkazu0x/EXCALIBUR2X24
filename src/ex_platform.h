@@ -43,10 +43,10 @@ namespace ex::platform {
         uint32_t height();
         int8_t get_key(int32_t key_code);
         
-        void change_display_mode();
+        void toggle_fullscreen();
         void change_title(std::string title);
         void set_cursor_pos(uint32_t x, uint32_t y);
-        void show_cursor(bool show);
+        void hide_cursor(bool show);
         
         bool create_vulkan_surface(VkInstance instance,
                                    VkAllocationCallbacks *allocator,
@@ -80,14 +80,18 @@ namespace ex::platform {
         
     private:
         ex::input *m_pinput;
-        
-        HINSTANCE m_instance;
+
         ATOM m_atom;
         HWND m_handle;
-
+        HCURSOR m_cursor;
+        HINSTANCE m_instance;
+        //WINDOWPLACEMENT m_window_placement;
+        
         window_info m_window_info;
         window_state m_current_state;
         window::mode m_current_mode;
+
+        bool m_hide_cursor;
     };
 
     class timer {
