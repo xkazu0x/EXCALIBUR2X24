@@ -39,21 +39,23 @@ struct ubo {
 
 namespace ex {
     struct aabb {
-        std::vector<ex::vertex> vertices;
-        std::vector<uint32_t> indices;
         glm::vec3 min;
         glm::vec3 max;
+        ex::mesh mesh;
+        ex::vulkan::model model;
     };
 
     struct entity {
-        ex::mesh mesh;
         ex::vulkan::model model;
-        ex::aabb aabb;
-        ex::mesh aabb_mesh;
-        ex::vulkan::model aabb_model;
         ex::comp::transform transform;
+        ex::aabb aabb;
     };
 }
+
+struct meshes {
+    ex::mesh monkey;
+    ex::mesh grid;
+} _meshes;
 
 struct vulkan_shaders {
     ex::vulkan::shader solid_color;
@@ -69,8 +71,58 @@ struct vulkan_descriptor_sets {
     ex::vulkan::descriptor_set uniform;
 } _descriptor_sets;
 
+struct render_data {
+    std::vector<ex::vulkan::model*> models;
+    std::vector<ex::vulkan::model*> aabb_models;
+    std::vector<ex::comp::transform*> transforms;
+} _render_data;
+
 void create_grid(uint32_t size, std::vector<ex::vertex> *vertices, std::vector<uint32_t> *indices);
-ex::aabb create_aabb(std::vector<ex::vertex> vertices);
+ex::aabb create_aabb_mesh(std::vector<ex::vertex> vertices);
+
+void
+mesh_render_pass(ex::vulkan::backend *backend,
+                 ex::vulkan::pipeline *pipeline,
+                 std::vector<VkDescriptorSet> &descriptor_sets,
+                 render_data *render_data,
+                 glm::vec3 color) {
+    pipeline->bind(backend->current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS);
+    pipeline->update_dynamic(backend->current_frame(), backend->swapchain_extent());
+    pipeline->bind_descriptor_sets(backend->current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS, descriptor_sets);
+    
+    push_constants::color constants = {};
+    constants.color = glm::vec4(color, 1.0f);
+
+    for (uint32_t i = 0; i < render_data->models.size(); i++) {
+        constants.model = render_data->transforms[i]->matrix();
+        pipeline->push_constants(backend->current_frame(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, &constants);
+        
+        render_data->models[i]->bind(backend->current_frame());
+        render_data->models[i]->draw(backend->current_frame());
+    }
+}
+
+void
+aabb_render_pass(ex::vulkan::backend *backend,
+                 ex::vulkan::pipeline *pipeline,
+                 std::vector<VkDescriptorSet> &descriptor_sets,
+                 render_data *render_data,
+                 glm::vec3 color) {
+    pipeline->bind(backend->current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS);
+    pipeline->update_dynamic(backend->current_frame(), backend->swapchain_extent());
+    pipeline->bind_descriptor_sets(backend->current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS, descriptor_sets);
+    
+    push_constants::color constants = {};
+    constants.color = glm::vec4(color, 1.0f);
+
+    for (uint32_t i = 0; i < render_data->aabb_models.size(); i++) {
+        constants.model = render_data->transforms[i]->matrix();
+        pipeline->push_constants(backend->current_frame(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, &constants);
+        
+        render_data->aabb_models[i]->bind(backend->current_frame());
+        render_data->aabb_models[i]->draw(backend->current_frame());
+    }
+}
 
 int main() {
     EXFATAL("-+=+EXCALIBUR+=+-");
@@ -90,30 +142,69 @@ int main() {
         EXFATAL("Failed to initialize vulkan backend");
         return -1;
     }
-
-    // ex::entity monkey = entity_manager.create_entity();
-    // asset_manager.add_mesh(monkey.id, "res/meshes/monkey_smooth.obj");
-    // renderer.create_model(monkey.id);
-    // components.add_transform(monkey.id);
-    // components.add_bounding_box(monkey.id);
     
-    ex::entity monkey;
-    monkey.mesh.load_file("res/meshes/monkey_smooth.obj");
-    EXDEBUG("Monkey vertex count: %d", monkey.mesh.vertices().size());
-    EXDEBUG("Monkey index count: %d", monkey.mesh.indices().size());
-    monkey.model.create(&backend, &monkey.mesh);
-
-    monkey.aabb = create_aabb(monkey.mesh.vertices());
-    monkey.aabb_mesh.load_array(monkey.aabb.vertices, monkey.aabb.indices);
-    monkey.aabb_model.create(&backend, &monkey.aabb_mesh);
+    // load meshes
+    _meshes.monkey.load_file("res/meshes/monkey_smooth.obj");
+    EXDEBUG("Monkey vertex count: %d", _meshes.monkey.vertices().size());
+    EXDEBUG("Monkey index count: %d", _meshes.monkey.indices().size());
     
-    ex::entity grid;
     std::vector<ex::vertex> vertices;
     std::vector<uint32_t> indices;
     create_grid(10, &vertices, &indices);
-    grid.mesh.load_array(vertices, indices);
-    grid.model.create(&backend, &grid.mesh);
-            
+    _meshes.grid.load_array(vertices, indices);
+    EXDEBUG("Monkey vertex count: %d", _meshes.grid.vertices().size());
+    EXDEBUG("Monkey index count: %d", _meshes.grid.indices().size());
+    
+    // entities
+    ex::entity monkey;
+    ex::entity monkey1;
+    ex::entity monkey2;
+    ex::entity grid;
+
+    // create models    
+    monkey.model.create(&backend, &_meshes.monkey);
+    monkey1.model.create(&backend, &_meshes.monkey);
+    monkey2.model.create(&backend, &_meshes.monkey);
+    grid.model.create(&backend, &_meshes.grid);    
+
+    // initialize transforms
+    monkey.transform.translation = glm::vec3(0.0f, 2.0f, 0.0f);
+    monkey.transform.rotation = glm::vec3(0.0f);
+    monkey.transform.scale = glm::vec3(0.8f);        
+    
+    monkey1.transform.translation = glm::vec3(0.0f, 4.0f, 0.0f);
+    monkey1.transform.rotation = glm::vec3(0.0f);
+    monkey1.transform.scale = glm::vec3(0.8f);
+    
+    monkey2.transform.translation = glm::vec3(0.0f, 6.0f, 0.0f);
+    monkey2.transform.rotation = glm::vec3(0.0f);
+    monkey2.transform.scale = glm::vec3(0.8f);
+
+    grid.transform.translation = glm::vec3(0.0f);
+    grid.transform.rotation = glm::vec3(0.0f);
+    grid.transform.scale = glm::vec3(1.0f);
+    
+    monkey.aabb = create_aabb_mesh(_meshes.monkey.vertices());
+    monkey1.aabb = create_aabb_mesh(_meshes.monkey.vertices());
+    monkey2.aabb = create_aabb_mesh(_meshes.monkey.vertices());
+    
+    monkey.aabb.model.create(&backend, &monkey.aabb.mesh);
+    monkey1.aabb.model.create(&backend, &monkey1.aabb.mesh);
+    monkey2.aabb.model.create(&backend, &monkey2.aabb.mesh);
+    
+    // push to render data struct
+    _render_data.models.push_back(&monkey.model);
+    _render_data.models.push_back(&monkey1.model);
+    _render_data.models.push_back(&monkey2.model);
+    _render_data.models.push_back(&grid.model);
+    _render_data.aabb_models.push_back(&monkey.aabb.model);
+    _render_data.aabb_models.push_back(&monkey1.aabb.model);
+    _render_data.aabb_models.push_back(&monkey2.aabb.model);
+    _render_data.transforms.push_back(&monkey.transform);
+    _render_data.transforms.push_back(&monkey1.transform);
+    _render_data.transforms.push_back(&monkey2.transform);
+    _render_data.transforms.push_back(&grid.transform);
+    
     ex::vulkan::buffer uniform_buffer;
     uniform_buffer.set_usage(VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
     uniform_buffer.set_properties(VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
@@ -155,19 +246,14 @@ int main() {
     _shaders.memory_bug.destroy(&backend);
 
     EXINFO("-=+INITIALIZED+=-");
-    // NOTE: camera orientation is inverted
     ex::camera camera = {};
     camera.set_speed(5.0f);
     camera.set_sens(33.0f);
     camera.set_position({0.0f, 2.0f, 4.0f});
     camera.set_target({0.0f, 0.0f, 1.0f});
     camera.set_up({0.0f, -1.0f, 0.0f});
-    camera.set_perspective(80.0f, (float) window.width() / (float) window.height(), 0.1f, 20.0f);                        
+    camera.set_perspective(80.0f, (float) window.width() / (float) window.height(), 0.1f, 20.0f);
     
-    grid.transform.translation = glm::vec3(0.0f, 0.0f, 0.0f);
-    grid.transform.rotation = glm::vec3(0.0f, 0.0f, 0.0f);
-    grid.transform.scale = glm::vec3(1.0f);
-
     bool render_fill = true;
     bool render_line = false;
     bool render_aabb = false;
@@ -213,10 +299,10 @@ int main() {
             window.set_cursor_pos(backend.swapchain_extent().width / 2, backend.swapchain_extent().height / 2);
             window.hide_cursor(true);
         } else { window.hide_cursor(false); }
-
-        monkey.transform.rotation.y += 100.0f * delta;
-        monkey.transform.scale = glm::vec3(0.8f);
         
+        monkey.transform.rotation.y += -100.0f * delta;
+        monkey1.transform.rotation.y += 100.0f * delta;
+        monkey2.transform.rotation.y += -100.0f * delta;
         grid.transform.rotation.y += 100.0f * delta;
         
         ubo ubo = {};
@@ -234,79 +320,10 @@ int main() {
         backend.begin_render();
         if (!window.inactive()) {
             std::vector<VkDescriptorSet> sets = {_descriptor_sets.uniform.handle()};
-
-            if (render_fill) {
-                _pipelines.memory_bug.bind(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS);
-                _pipelines.memory_bug.update_dynamic(backend.current_frame(), backend.swapchain_extent());
-                _pipelines.memory_bug.bind_descriptor_sets(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS, sets);
-
-                push_constants::color constants = {};
-                constants.color = glm::vec4(1.0f);
-                
-                for (float y = 0.5f; y < 3.0f; y++) {
-                    for (int x = -1; x < 2; x++) {
-                        float spread = 3.0f;
-                        monkey.transform.translation = glm::vec3(x * spread, y * spread, -4.0f);
-                        
-                        constants.model = monkey.transform.matrix();
-                        _pipelines.memory_bug.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, &constants);
-                        monkey.model.bind(backend.current_frame());
-                        monkey.model.draw(backend.current_frame());
-                    }
-                }
             
-                constants.model = grid.transform.matrix();
-                _pipelines.memory_bug.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, &constants);
-                grid.model.bind(backend.current_frame());
-                grid.model.draw(backend.current_frame());
-            }
-            
-            if (render_line) {
-                _pipelines.solid_color.bind(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS);
-                _pipelines.solid_color.update_dynamic(backend.current_frame(), backend.swapchain_extent());
-                _pipelines.solid_color.bind_descriptor_sets(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS, sets);
-            
-                push_constants::color constants = {};
-                constants.color = glm::vec4(1.0f, 0.0f, 1.0f, 1.0f);
-                
-                for (float y = 0.5f; y < 3.0f; y++) {
-                    for (int x = -1; x < 2; x++) {
-                        float spread = 3.0f;
-                        monkey.transform.translation = glm::vec3(x * spread, y * spread, -4.0f);
-                        
-                        constants.model = monkey.transform.matrix();
-                        _pipelines.solid_color.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, &constants);
-                        monkey.model.bind(backend.current_frame());
-                        monkey.model.draw(backend.current_frame());
-                    }
-                }
-            
-                constants.model = grid.transform.matrix();
-                _pipelines.solid_color.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, &constants);
-                grid.model.bind(backend.current_frame());
-                grid.model.draw(backend.current_frame());
-            }
-
-            if (render_aabb) {
-                _pipelines.solid_color.bind(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS);
-                _pipelines.solid_color.update_dynamic(backend.current_frame(), backend.swapchain_extent());
-                _pipelines.solid_color.bind_descriptor_sets(backend.current_frame(), VK_PIPELINE_BIND_POINT_GRAPHICS, sets);
-            
-                push_constants::color constants = {};
-                constants.color = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
-                
-                for (float y = 0.5f; y < 3.0f; y++) {
-                    for (int x = -1; x < 2; x++) {
-                        float spread = 3.0f;
-                        monkey.transform.translation = glm::vec3(x * spread, y * spread, -4.0f);
-                        
-                        constants.model = monkey.transform.matrix();
-                        _pipelines.solid_color.push_constants(backend.current_frame(), VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, &constants);
-                        monkey.aabb_model.bind(backend.current_frame());
-                        monkey.aabb_model.draw(backend.current_frame());
-                    }
-                }
-            }
+            if (render_fill) mesh_render_pass(&backend, &_pipelines.memory_bug, sets, &_render_data, glm::vec3(1.0f));
+            if (render_line) mesh_render_pass(&backend, &_pipelines.solid_color, sets, &_render_data, glm::vec3(1.0f, 0.0f, 1.0f));
+            if (render_aabb) aabb_render_pass(&backend, &_pipelines.solid_color, sets, &_render_data, glm::vec3(1.0f, 1.0f, 0.0f));
         }
         
         backend.end_render();
@@ -326,7 +343,13 @@ int main() {
     uniform_buffer.destroy(&backend);
 
     grid.model.destroy(&backend);
-    monkey.aabb_model.destroy(&backend);
+    
+    monkey2.aabb.model.destroy(&backend);
+    monkey1.aabb.model.destroy(&backend);
+    monkey.aabb.model.destroy(&backend);
+    
+    monkey2.model.destroy(&backend);
+    monkey1.model.destroy(&backend);
     monkey.model.destroy(&backend);
     
     backend.shutdown();
@@ -384,7 +407,7 @@ void create_grid(uint32_t size,
 }
 
 ex::aabb
-create_aabb(std::vector<ex::vertex> vertices) {
+create_aabb_mesh(std::vector<ex::vertex> vertices) {
     glm::vec3 min = glm::vec3(0.0f);
     glm::vec3 max = glm::vec3(0.0f);
     for (ex::vertex &vertex : vertices) {
@@ -401,63 +424,68 @@ create_aabb(std::vector<ex::vertex> vertices) {
     out_aabb.min = min;
     out_aabb.max = max;
 
-    // FRONT
-    out_aabb.vertices.push_back(ex::vertex({min.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({max.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({max.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    std::vector<ex::vertex> aabb_vertices;
+    std::vector<uint32_t> aabb_indices;
 
-    out_aabb.vertices.push_back(ex::vertex({min.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({min.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({max.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    // FRONT
+    aabb_vertices.push_back(ex::vertex({min.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+
+    aabb_vertices.push_back(ex::vertex({min.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
                                 
     // BACK
-    out_aabb.vertices.push_back(ex::vertex({max.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({min.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({min.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
 
-    out_aabb.vertices.push_back(ex::vertex({max.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({max.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({min.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
     
     // LEFT
-    out_aabb.vertices.push_back(ex::vertex({min.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({min.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({min.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
 
-    out_aabb.vertices.push_back(ex::vertex({min.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({min.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({min.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
     
     // RIGHT
-    out_aabb.vertices.push_back(ex::vertex({max.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({max.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({max.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
 
-    out_aabb.vertices.push_back(ex::vertex({max.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({max.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({max.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
     
     // TOP
-    out_aabb.vertices.push_back(ex::vertex({min.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({max.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({max.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
 
-    out_aabb.vertices.push_back(ex::vertex({min.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({min.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({max.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, max.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, max.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
     
     // BOTTOM
-    out_aabb.vertices.push_back(ex::vertex({min.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({max.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({max.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
 
-    out_aabb.vertices.push_back(ex::vertex({min.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({min.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
-    out_aabb.vertices.push_back(ex::vertex({max.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, min.y, max.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({min.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
+    aabb_vertices.push_back(ex::vertex({max.x, min.y, min.z}, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0.0f, 0.0f, 0.0f}));
     
-    for (uint32_t i = 0; i < out_aabb.vertices.size(); i++) {
-        out_aabb.indices.push_back(out_aabb.indices.size());
+    for (uint32_t i = 0; i < aabb_vertices.size(); i++) {
+        aabb_indices.push_back(aabb_indices.size());
     }
+
+    out_aabb.mesh.load_array(aabb_vertices, aabb_indices);
     
     return out_aabb;
 }
