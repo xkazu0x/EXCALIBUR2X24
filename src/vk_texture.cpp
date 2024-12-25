@@ -88,13 +88,7 @@ ex::vulkan::texture::create(ex::vulkan::backend *backend, const char *file_path)
 
 void
 ex::vulkan::texture::destroy(ex::vulkan::backend *backend) {
-    vkDeviceWaitIdle(backend->logical_device());
-    if (m_sampler) {
-        vkDestroySampler(backend->logical_device(),
-                         m_sampler,
-                         backend->allocator());
-    }
-    
+    if (m_sampler) vkDestroySampler(backend->logical_device(), m_sampler, backend->allocator());
     m_image.destroy(backend);
 }
 

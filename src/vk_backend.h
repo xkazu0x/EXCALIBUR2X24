@@ -20,7 +20,8 @@ namespace ex::vulkan {
         void shutdown();
         void begin_render();
         void end_render();
-                
+        void wait_idle();
+        
         VkCommandBuffer begin_single_time_commands();
         void end_single_time_commands(VkCommandBuffer command_buffer);
 
@@ -54,7 +55,7 @@ namespace ex::vulkan {
 
     private:
         ex::platform::window *m_pwindow;
-
+        
         VkAllocationCallbacks *m_allocator;
         VkInstance m_instance;
 #ifdef EXCALIBUR_DEBUG
@@ -71,7 +72,7 @@ namespace ex::vulkan {
 
         VkCommandPool m_command_pool;
         std::vector<VkCommandBuffer> m_command_buffers;
-        
+
         VkSurfaceCapabilitiesKHR m_swapchain_capabilities;
         std::vector<VkSurfaceFormatKHR> m_swapchain_formats;
         std::vector<VkPresentModeKHR> m_swapchain_present_modes;

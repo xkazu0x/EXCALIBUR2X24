@@ -1,7 +1,11 @@
 #pragma once
 
-#include "ex_component.hpp"
 #include "ex_input.h"
+
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/rotate_vector.hpp>
 
 namespace ex {
     class camera {
@@ -23,7 +27,7 @@ namespace ex {
         glm::mat4 get_view() { return m_view; }
         glm::mat4 get_projection() { return m_projection; }
         
-    private:
+    public:
         glm::vec3 m_position;
         glm::vec3 m_target;
         glm::vec3 m_up;

@@ -77,23 +77,9 @@ ex::vulkan::image::create(ex::vulkan::backend *backend) {
 
 void
 ex::vulkan::image::destroy(ex::vulkan::backend *backend) {
-    if (m_view) {
-        vkDestroyImageView(backend->logical_device(),
-                           m_view,
-                           backend->allocator());
-    }
-    
-    if (m_handle) {
-        vkDestroyImage(backend->logical_device(),
-                       m_handle,
-                       backend->allocator());
-    }
-    
-    if (m_memory) {
-        vkFreeMemory(backend->logical_device(),
-                     m_memory,
-                     backend->allocator());
-    }
+    if (m_view) vkDestroyImageView(backend->logical_device(), m_view, backend->allocator());
+    if (m_handle) vkDestroyImage(backend->logical_device(), m_handle, backend->allocator());
+    if (m_memory) vkFreeMemory(backend->logical_device(), m_memory, backend->allocator());
 }
 
 void

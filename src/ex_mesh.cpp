@@ -29,14 +29,9 @@ ex::mesh::load_file(const char *path) {
     std::vector<tinyobj::material_t> materials;
     std::string warn, error;
     
-    bool result = tinyobj::LoadObj(&attributes,
-                                  &shapes,
-                                  &materials,
-                                  &warn,
-                                  &error,
-                                  path);
-    if (!warn.empty()) EXWARN("Mesh loader: %s", warn.c_str());
-    if (!error.empty()) EXERROR("Mesh loader: %s", error.c_str());
+    bool result = tinyobj::LoadObj(&attributes, &shapes, &materials, &warn, &error, path);
+    if (!warn.empty()) { EXWARN("Mesh loader: %s", warn.c_str()); }
+    if (!error.empty()) { EXERROR("Mesh loader: %s", error.c_str()); }
     if (!result) throw std::runtime_error(error);
 
     m_vertices.clear();

@@ -35,7 +35,7 @@ ex::platform::window::create(ex::platform::window::create_info *create_info) {
     uint32_t window_ex_style = 0;
     uint32_t window_style = 0;
     
-    if (create_info->mode == FULLSCREEN) {
+    if (create_info->mode == EX_WINDOW_MODE_FULLSCREEN) {
         m_window_info.current_width = m_window_info.fullscreen_width;
         m_window_info.current_height = m_window_info.fullscreen_height;
         m_window_info.xpos = 0;
@@ -53,7 +53,7 @@ ex::platform::window::create(ex::platform::window::create_info *create_info) {
         screen_settings.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
 
         ChangeDisplaySettings(&screen_settings, CDS_FULLSCREEN);
-    } else if (create_info->mode == WINDOWED) {
+    } else if (create_info->mode == EX_WINDOW_MODE_WINDOWED) {
         m_window_info.current_width = m_window_info.windowed_width;
         m_window_info.current_height = m_window_info.windowed_height;
         m_window_info.xpos = (m_window_info.fullscreen_width - m_window_info.current_width) / 2;
@@ -109,7 +109,7 @@ ex::platform::window::show() {
 
 void
 ex::platform::window::close() {
-    if (m_current_mode == FULLSCREEN) ChangeDisplaySettings(NULL, 0);
+    if (m_current_mode == EX_WINDOW_MODE_FULLSCREEN) ChangeDisplaySettings(NULL, 0);
     m_current_state = EX_WINDOW_STATE_CLOSED;
 }
 
@@ -169,7 +169,7 @@ ex::platform::window::toggle_fullscreen() {
     //                  SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
     // }
 
-    if (m_current_mode == WINDOWED) {            
+    if (m_current_mode == EX_WINDOW_MODE_WINDOWED) {
         window_ex_style = WS_EX_APPWINDOW;
         window_style &= ~WS_OVERLAPPEDWINDOW;
         window_style |= WS_POPUP;
@@ -181,7 +181,7 @@ ex::platform::window::toggle_fullscreen() {
         m_window_info.current_height = m_window_info.fullscreen_height;
         m_window_info.xpos = 0;
         m_window_info.ypos = 0;
-        m_current_mode = FULLSCREEN;
+        m_current_mode = EX_WINDOW_MODE_FULLSCREEN;
 
         SetWindowPos(m_handle, HWND_TOP,
                      m_window_info.xpos,
@@ -189,7 +189,7 @@ ex::platform::window::toggle_fullscreen() {
                      m_window_info.current_width,
                      m_window_info.current_height,
                      SWP_SHOWWINDOW);
-    } else if (m_current_mode == FULLSCREEN) {
+    } else if (m_current_mode == EX_WINDOW_MODE_FULLSCREEN) {
         window_ex_style = WS_EX_OVERLAPPEDWINDOW;
         window_style &= ~WS_POPUP;
         window_style |= WS_OVERLAPPEDWINDOW;
@@ -200,7 +200,7 @@ ex::platform::window::toggle_fullscreen() {
         m_window_info.current_height = m_window_info.windowed_height;
         m_window_info.xpos = (m_window_info.fullscreen_width - m_window_info.current_width) / 2;
         m_window_info.ypos = (m_window_info.fullscreen_height - m_window_info.current_height) / 2;
-        m_current_mode = WINDOWED;
+        m_current_mode = EX_WINDOW_MODE_WINDOWED;
         
         RECT border_rect = { 0, 0, 0, 0 };
         AdjustWindowRectEx(&border_rect, window_style, 0, window_ex_style);

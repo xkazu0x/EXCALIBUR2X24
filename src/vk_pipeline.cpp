@@ -103,18 +103,8 @@ ex::vulkan::pipeline::build(ex::vulkan::backend *backend, ex::vulkan::shader *sh
 
 void
 ex::vulkan::pipeline::destroy(ex::vulkan::backend *backend) {
-    vkDeviceWaitIdle(backend->logical_device());
-    if (m_handle) {
-        vkDestroyPipeline(backend->logical_device(),
-                          m_handle,
-                          backend->allocator());
-    }
-    
-    if (m_layout) {
-        vkDestroyPipelineLayout(backend->logical_device(),
-                                m_layout,
-                                backend->allocator());
-    }
+    if (m_handle) vkDestroyPipeline(backend->logical_device(), m_handle, backend->allocator());
+    if (m_layout) vkDestroyPipelineLayout(backend->logical_device(), m_layout, backend->allocator());
 }
 
 void

@@ -46,7 +46,8 @@ ex::camera::update_matrix(uint32_t width, uint32_t height) {
 
 void
 ex::camera::update_input(ex::input *input, float delta) {
-    if (input->key_pressed(EX_KEY_P)) m_locked = !m_locked;
+    if (input->key_down(EX_KEY_TAB)) m_locked = true;
+    else m_locked = false;
     
     if (!m_locked) {
         if (input->key_down(EX_KEY_W)) {

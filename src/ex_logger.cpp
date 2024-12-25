@@ -1,9 +1,11 @@
 #include "ex_logger.h"
+#include "ex_platform.h"
 
 #include <stdio.h>
 #include <stdarg.h>
 
-void ex::logger::log_output(log_level level, const char *message, ...) {
+void
+ex::logger::log_output(ex_log_level level, const char *message, ...) {
 	const char *levels[5] = {
 		"[FATAL]: ",
 		"[ERROR]: ",

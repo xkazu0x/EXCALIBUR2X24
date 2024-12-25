@@ -5,11 +5,11 @@
 #include <vector>
 #include <array>
 
-VKAPI_ATTR VkBool32 VKAPI_CALL
-debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
-               VkDebugUtilsMessageTypeFlagsEXT /*message_type*/,
-               const VkDebugUtilsMessengerCallbackDataEXT *callback_data,
-               void */*user_data*/) {
+static VKAPI_ATTR VkBool32 VKAPI_CALL
+vulkan_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT message_severity,
+                      VkDebugUtilsMessageTypeFlagsEXT /*message_type*/,
+                      const VkDebugUtilsMessengerCallbackDataEXT *callback_data,
+                      void */*user_data*/) {
     switch (message_severity) {
     default:
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT: {
@@ -195,6 +195,11 @@ ex::vulkan::backend::end_render() {
     }
 }
 
+void
+ex::vulkan::backend::wait_idle() {
+    vkDeviceWaitIdle(m_logical_device);
+}
+
 bool
 ex::vulkan::backend::create_instance() {
     // INSTANCE LAYERS 
@@ -230,6 +235,7 @@ ex::vulkan::backend::create_instance() {
     };    
 #ifdef EXCALIBUR_DEBUG
     enabled_extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    enabled_extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
 #endif
     uint32_t available_extension_count = 0;
     VK_CHECK(vkEnumerateInstanceExtensionProperties(0, &available_extension_count, nullptr));
@@ -279,9 +285,7 @@ ex::vulkan::backend::setup_debug_messenger() {
 #ifdef EXCALIBUR_DEBUG
     uint32_t message_severity =
         VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT; // |
-        //VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-        //VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
+        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT;
 
     uint32_t message_type =
         VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
@@ -292,8 +296,8 @@ ex::vulkan::backend::setup_debug_messenger() {
     debug_messenger_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
     debug_messenger_create_info.messageSeverity = message_severity;
     debug_messenger_create_info.messageType = message_type;
-    debug_messenger_create_info.pfnUserCallback = debug_callback;
-
+    debug_messenger_create_info.pfnUserCallback = vulkan_debug_callback;
+    
     PFN_vkCreateDebugUtilsMessengerEXT create_debug_messenger =
         (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT");
     VK_CHECK(create_debug_messenger(m_instance,

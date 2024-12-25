@@ -2,29 +2,32 @@
 
 #include "ex_input.h"
 
-//#define NOMINMAX
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <windowsx.h>
-#include <vulkan/vulkan.h>
-#include <vulkan/vulkan_win32.h>
-
 #include <string>
 #include <cstdint>
 
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+
+#include <windows.h>
+#include <windowsx.h>
+
+#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_win32.h>
+
+enum ex_window_mode {
+    EX_WINDOW_MODE_WINDOWED = 0,
+    EX_WINDOW_MODE_FULLSCREEN = 1,
+};
+
 namespace ex::platform {
     class window {
-    public:
-        enum mode {
-            WINDOWED = 0,
-            FULLSCREEN = 1,
-        };
-        
+    public:        
         struct create_info {
             std::string title;
             uint32_t width;
             uint32_t height;
-            window::mode mode;
+            ex_window_mode mode;
             ex::input *pinput;
         };
                 
@@ -48,9 +51,7 @@ namespace ex::platform {
         void set_cursor_pos(uint32_t x, uint32_t y);
         void hide_cursor(bool show);
         
-        bool create_vulkan_surface(VkInstance instance,
-                                   VkAllocationCallbacks *allocator,
-                                   VkSurfaceKHR *surface);
+        bool create_vulkan_surface(VkInstance instance, VkAllocationCallbacks *allocator, VkSurfaceKHR *surface);
         
     private:
         static LRESULT process_message_setup(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
@@ -59,7 +60,7 @@ namespace ex::platform {
         LRESULT process_message(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam);
 
     private:
-        struct window_info {
+        struct ex_window_info {
             std::string title;
             uint32_t current_width;
             uint32_t current_height;
@@ -71,7 +72,7 @@ namespace ex::platform {
             int32_t ypos;
         };
         
-        enum window_state {
+        enum ex_window_state {
             EX_WINDOW_STATE_HIDDEN = 0x00,
             EX_WINDOW_STATE_ACTIVE = 0x01,
             EX_WINDOW_STATE_INACTIVE = 0x02,
@@ -87,38 +88,20 @@ namespace ex::platform {
         HINSTANCE m_instance;
         //WINDOWPLACEMENT m_window_placement;
         
-        window_info m_window_info;
-        window_state m_current_state;
-        window::mode m_current_mode;
+        ex_window_info m_window_info;
+        ex_window_state m_current_state;
+        ex_window_mode m_current_mode;
 
         bool m_hide_cursor;
     };
 
     class timer {
     public:
-        void init(float target_seconds_per_frame);
-        void start();
-        void end();
-
-        float get_seconds_elapsed() { return m_seconds_elapsed; }
-        double ms() { return m_ms_per_frame; }
-        double fps() { return m_frames_per_second; }
-        double mc() { return m_mega_cycles_per_frame; }
+        void init();
+        uint64_t get_time();
+        uint64_t get_frequency();
         
     private:
         LARGE_INTEGER m_counter_frequency;
-        float m_target_seconds_per_frame;
-        bool m_sleep_is_granular;
-        
-        LARGE_INTEGER m_last_counter;
-        LARGE_INTEGER m_end_counter;
-        int64_t m_last_cycle_count;
-        int64_t m_end_cycle_count;
-
-        float m_seconds_elapsed;
-        
-        double m_ms_per_frame;
-        double m_frames_per_second;
-        double m_mega_cycles_per_frame;
     };
 }

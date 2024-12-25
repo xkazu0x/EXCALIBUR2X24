@@ -87,16 +87,8 @@ ex::vulkan::buffer::copy_buffer(VkCommandBuffer command_buffer,
 
 void
 ex::vulkan::buffer::destroy(ex::vulkan::backend *backend) {
-    if (m_handle) {
-        vkDestroyBuffer(backend->logical_device(),
-                        m_handle,
-                        backend->allocator());
-    }
-    if (m_memory) {
-        vkFreeMemory(backend->logical_device(),
-                     m_memory,
-                     backend->allocator());
-    }
+    if (m_handle) vkDestroyBuffer(backend->logical_device(), m_handle, backend->allocator());
+    if (m_memory) vkFreeMemory(backend->logical_device(), m_memory, backend->allocator());
 }
 
 VkDescriptorBufferInfo*
